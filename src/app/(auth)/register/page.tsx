@@ -2,10 +2,88 @@
 
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { authService } from "@/app/services/auth.service";
+
+const calculatePasswordStrength = (password: string) => {
+  let score = 0;
+
+  if (password.length >= 8) score++;
+  if (/[A-Z]/.test(password)) score++;
+  if (/[a-z]/.test(password)) score++;
+  if (/[0-9]/.test(password)) score++;
+  if (/[^A-Za-z0-9]/.test(password)) score++;
+
+  return score; // 0 -> 5
+};
+
+const getStrengthLabel = (score: number) => {
+  if (score <= 2) return "Weak";
+  if (score === 3) return "Medium";
+  if (score === 4) return "Strong";
+  return "Very Strong";
+};
+
+const getStrengthColor = (score: number) => {
+  if (score <= 2) return "bg-red-500";
+  if (score === 3) return "bg-yellow-500";
+  if (score === 4) return "bg-blue-500";
+  return "bg-green-500";
+};
 
 export default function RegisterPage() {
-  const [showPassword, setShowPassword] = useState(false);
+  const router = useRouter();
 
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const [form, setForm] = useState({
+    fullName: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+  });
+
+  const [error, setError] = useState<string | null>(null);
+
+  const passwordScore = calculatePasswordStrength(form.password);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setForm({
+      ...form,
+      [e.target.name]: e.target.value,
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    if (form.password !== form.confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      await authService.register({
+        fullName: form.fullName,
+        email: form.email,
+        password: form.password,
+      });
+
+      router.push("/login");
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("Registration failed");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
   return (
     <section className="bg-background-light">
       {/* Header */}
@@ -78,7 +156,7 @@ export default function RegisterPage() {
           </div>
 
           {/* Form */}
-          <form className="space-y-4">
+          <form className="space-y-4" onSubmit={handleSubmit}>
             {/* Full Name */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">
@@ -86,7 +164,10 @@ export default function RegisterPage() {
               </label>
               <input
                 type="text"
+                name="fullName"
+                value={form.fullName}
                 placeholder="Enter your full name"
+                onChange={handleChange}
                 className="w-full h-12 px-4 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none placeholder:text-gray-400"
               />
             </div>
@@ -98,7 +179,10 @@ export default function RegisterPage() {
               </label>
               <input
                 type="email"
+                name="email"
+                value={form.email}
                 placeholder="you@example.com"
+                onChange={handleChange}
                 className="w-full h-12 px-4 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none placeholder:text-gray-400"
               />
             </div>
@@ -113,6 +197,9 @@ export default function RegisterPage() {
                 <input
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
+                  name="password"
+                  value={form.password}
+                  onChange={handleChange}
                   className="w-full h-12 px-4 pr-12 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none placeholder:text-gray-400"
                 />
 
@@ -138,28 +225,48 @@ export default function RegisterPage() {
               <input
                 type="password"
                 placeholder="••••••••"
+                name="confirmPassword"
+                value={form.confirmPassword}
+                onChange={handleChange}
                 className="w-full h-12 px-4 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none placeholder:text-gray-400"
               />
             </div>
 
             {/* Password Strength */}
-            <div className="flex gap-1 mt-2">
-              <div className="h-1 flex-1 bg-primary rounded-full"></div>
-              <div className="h-1 flex-1 bg-primary rounded-full"></div>
-              <div className="h-1 flex-1 bg-primary rounded-full"></div>
-              <div className="h-1 flex-1 bg-gray-200 rounded-full"></div>
+            <div className="mt-2">
+              <div className="flex gap-1">
+                {[1, 2, 3, 4, 5].map((level) => (
+                  <div
+                    key={level}
+                    className={`h-1 flex-1 rounded-full ${
+                      passwordScore >= level
+                        ? getStrengthColor(passwordScore)
+                        : "bg-gray-200"
+                    }`}
+                  />
+                ))}
+              </div>
+
+              {form.password && (
+                <p className="text-xs mt-1 font-semibold">
+                  {getStrengthLabel(passwordScore)}
+                </p>
+              )}
             </div>
 
             <p className="text-[11px] text-gray-500 font-medium">
               Use 8 or more characters with a mix of letters, numbers &amp;
               symbols.
             </p>
-
+            {error && (
+              <div className="text-sm text-red-500 font-medium">{error}</div>
+            )}
             <button
               type="submit"
+              disabled={loading}
               className="w-full h-12 mt-6 bg-primary hover:bg-opacity-90 text-white font-bold rounded-xl transition-all shadow-lg shadow-primary/20"
             >
-              Create account
+              {loading ? "Creating..." : "Create account"}
             </button>
           </form>
 
