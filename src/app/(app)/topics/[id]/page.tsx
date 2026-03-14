@@ -1,0 +1,170 @@
+"use client";
+
+import {
+  Search,
+  Bell,
+  Share2,
+  Plus,
+  MoreVertical,
+  Calendar,
+} from "lucide-react";
+
+export default function TopicDetailPage() {
+  return (
+    <div className="flex flex-col h-full bg-white ">
+      {/* Header */}
+      <header className="h-16 flex items-center justify-between px-8 border-b border-slate-200 ">
+        <div className="relative w-full max-w-md">
+          <Search
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+            size={18}
+          />
+          <input
+            placeholder="Search notes, tags, or topics..."
+            className="w-full bg-slate-100  rounded-xl pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-primary/30 outline-none"
+          />
+        </div>
+
+        <div className="flex items-center gap-4">
+          <button className="p-2 hover:bg-slate-100 rounded-lg">
+            <Bell size={18} />
+          </button>
+
+          <button className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 ">
+            <Share2 size={16} className="text-primary" />
+            <span className="text-xs font-bold uppercase tracking-wider">
+              Share
+            </span>
+          </button>
+        </div>
+      </header>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-8">
+        {/* Topic Header */}
+        <div className="flex items-end justify-between mb-8">
+          <div>
+            <p className="text-xs uppercase tracking-widest text-slate-500 mb-1">
+              Project Folder
+            </p>
+            <h2 className="text-3xl font-extrabold text-slate-900">Website Redesign</h2>
+            <p className="text-slate-500 mt-1">
+              12 notes • Last updated 2 hours ago
+            </p>
+          </div>
+
+          <div className="flex gap-3">
+            <button className="bg-primary/10 text-primary px-4 py-2 rounded-lg font-bold text-sm">
+              Filter
+            </button>
+            <button className="bg-primary text-white px-4 py-2 rounded-lg font-bold text-sm shadow-lg shadow-primary/20 flex items-center gap-2">
+              <Plus size={16} />
+              New Note
+            </button>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-8 border-b border-slate-100  mb-6">
+          <button className="pb-4 border-b-2 border-primary text-primary font-bold text-sm">
+            All Notes
+          </button>
+          <button className="pb-4 text-slate-500 text-sm">Recent</button>
+          <button className="pb-4 text-slate-500 text-sm">Archived</button>
+          <button className="pb-4 text-slate-500 text-sm">Trash</button>
+        </div>
+
+        {/* Notes Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <NoteCard
+            tag="High Priority"
+            tagColor="amber"
+            title="Color Palette Ideas"
+            description="Exploring a new direction for the SaaS platform. We should focus on high-contrast purples and clean neutral slates..."
+            date="Oct 24, 2023"
+          />
+
+          <NoteCard
+            tag="Documentation"
+            tagColor="blue"
+            title="Navigation Structure"
+            description="The sidebar needs to support nested folders up to 3 levels deep. Implement accordion behavior..."
+            date="Oct 23, 2023"
+          />
+
+          <NoteCard
+            tag="Meeting"
+            tagColor="slate"
+            title="Client Feedback - V1"
+            description="Client loved the minimalism but requested more typography emphasis..."
+            date="Oct 22, 2023"
+          />
+
+          <NewNoteCard />
+        </div>
+      </div>
+    </div>
+  );
+}
+function NoteCard({
+  tag,
+  tagColor,
+  title,
+  description,
+  date,
+}: {
+  tag: string;
+  tagColor: "amber" | "blue" | "slate";
+  title: string;
+  description: string;
+  date: string;
+}) {
+  const tagStyles = {
+    amber: "bg-amber-100 text-amber-700",
+    blue: "bg-blue-100 text-blue-700",
+    slate: "bg-slate-100 text-slate-600",
+  };
+
+  return (
+    <div className="group bg-white  border border-slate-200  p-6 rounded-xl hover:shadow-xl hover:border-primary/30 transition-all cursor-pointer">
+      <div className="flex justify-between items-start mb-4">
+        <span
+          className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${tagStyles[tagColor]}`}
+        >
+          {tag}
+        </span>
+        <button className="text-slate-400 hover:text-primary">
+          <MoreVertical size={18} />
+        </button>
+      </div>
+
+      <h3 className="text-lg font-bold mb-2 group-hover:text-primary transition-colors text-black">
+        {title}
+      </h3>
+
+      <p className="text-slate-600  text-sm line-clamp-3 mb-4">
+        {description}
+      </p>
+
+      <div className="flex items-center justify-between pt-4 border-t border-slate-100 ">
+        <div className="flex items-center gap-2 text-slate-500 text-xs">
+          <Calendar size={14} />
+          {date}
+        </div>
+      </div>
+    </div>
+  );
+}
+function NewNoteCard() {
+  return (
+    <div className="border-2 border-dashed border-slate-200  p-6 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:border-primary hover:text-primary transition-all cursor-pointer min-h-55">
+      <div className="w-12 h-12 rounded-full bg-slate-100  flex items-center justify-center mb-3">
+        <Plus />
+      </div>
+      <p className="font-bold text-sm">Create new note</p>
+      <p className="text-xs text-slate-500 mt-1">
+        or press <kbd className="px-1.5 py-0.5 bg-slate-100 rounded">N</kbd>
+      </p>
+    </div>
+  );
+}

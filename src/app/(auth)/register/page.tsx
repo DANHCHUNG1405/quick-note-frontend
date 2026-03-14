@@ -14,7 +14,7 @@ const calculatePasswordStrength = (password: string) => {
   if (/[0-9]/.test(password)) score++;
   if (/[^A-Za-z0-9]/.test(password)) score++;
 
-  return score; // 0 -> 5
+  return score; 
 };
 
 const getStrengthLabel = (score: number) => {

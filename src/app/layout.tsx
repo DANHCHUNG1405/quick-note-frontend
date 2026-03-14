@@ -20,7 +20,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={inter.variable}>
-      <body className="bg-[--color-background-light] text-[#121117] dark:text-white min-h-screen flex flex-col">
+      <body className="bg-background-light text-[#121117] dark:text-white min-h-screen flex flex-col">
         {children}
       </body>
     </html>
