@@ -24,6 +24,13 @@ export const notesService = {
   },
 
   /**
+   * GET NOTE BY ID
+   */
+  getById(noteId: string): Promise<Note> {
+    return request<Note>(`/notes/${noteId}`);
+  },
+
+  /**
    * UPDATE NOTE
    */
   update(noteId: string, payload: UpdateNotePayload): Promise<Note> {

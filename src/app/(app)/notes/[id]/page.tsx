@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Search,
   Bell,
@@ -25,24 +25,72 @@ import Placeholder from "@tiptap/extension-placeholder";
 import CharacterCount from "@tiptap/extension-character-count";
 import StarterKit from "@tiptap/starter-kit";
 import UnderlineExtension from "@tiptap/extension-underline";
+import { notesService } from "@/app/services/notes.service";
+import { Note } from "@/app/types/note.types";
 
 export default function NoteEditorPage() {
   const params = useParams();
-  const noteId = params.noteId as string;
+  const noteId = params.id as string;
 
   const isCreateMode = noteId === "new";
+
+  const [note, setNote] = useState<Note | null>(null);
+  const [title, setTitle] = useState("");
+  const [isLoading, setIsLoading] = useState(!isCreateMode);
+  const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+
+  const autosaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isDirtyRef = useRef(isDirty);
+  const isSavingRef = useRef(isSaving);
+
+  useEffect(() => {
+    isDirtyRef.current = isDirty;
+  }, [isDirty]);
+
+  useEffect(() => {
+    isSavingRef.current = isSaving;
+  }, [isSaving]);
+
+  useEffect(() => {
+    if (isCreateMode || !noteId) return;
+
+    let isActive = true;
+    setIsLoading(true);
+    setError(null);
+    setIsDirty(false);
+
+    notesService
+      .getById(noteId)
+      .then((data) => {
+        if (!isActive) return;
+        setNote(data);
+        setTitle(data.title || "");
+        setIsDirty(false);
+        if (data.updated_at) {
+          setLastSavedAt(new Date(data.updated_at));
+        }
+      })
+      .catch((err) => {
+        if (!isActive) return;
+        setError(err?.message || "Failed to load note");
+      })
+      .finally(() => {
+        if (!isActive) return;
+        setIsLoading(false);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [isCreateMode, noteId]);
 
   const initialContent = useMemo(() => {
     if (isCreateMode) return "<p></p>";
 
-    return `
-      <p>The primary objective of the new website redesign is to streamline the user journey while maintaining our core brand identity.</p>
-      <h2>Hero Section Concepts</h2>
-      <ul>
-        <li>Headline: "Reclaim your focus with QuickNote"</li>
-        <li>CTA: "Get Started Free"</li>
-      </ul>
-    `;
+    return "<p></p>";
   }, [isCreateMode]);
 
   const editor = useEditor({
@@ -71,9 +119,84 @@ export default function NoteEditorPage() {
     },
   });
 
+  const saveNote = useCallback(async () => {
+    if (isCreateMode || !noteId || !editor) return;
+    if (isSavingRef.current || !isDirtyRef.current) return;
+
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      const content = editor.getHTML();
+      const payload = {
+        title: title.trim() || "Untitled",
+        content,
+      };
+      const updated = await notesService.update(noteId, payload);
+      setNote(updated);
+      setLastSavedAt(new Date());
+      setIsDirty(false);
+    } catch (err: any) {
+      setError(err?.message || "Failed to save note");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [editor, isCreateMode, noteId, title]);
+
+  const scheduleAutosave = useCallback(() => {
+    if (isCreateMode || !noteId) return;
+    if (autosaveTimeoutRef.current) {
+      clearTimeout(autosaveTimeoutRef.current);
+    }
+    autosaveTimeoutRef.current = setTimeout(() => {
+      void saveNote();
+    }, 10000);
+  }, [isCreateMode, noteId, saveNote]);
+
+  useEffect(() => {
+    return () => {
+      if (autosaveTimeoutRef.current) {
+        clearTimeout(autosaveTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!editor) return;
+    if (isCreateMode) return;
+    if (!note) return;
+
+    const content = note.content && note.content.trim().length > 0
+      ? note.content
+      : "<p></p>";
+    editor.commands.setContent(content, false);
+  }, [editor, isCreateMode, note]);
+
+  useEffect(() => {
+    if (!editor) return;
+
+    const handleUpdate = () => {
+      setIsDirty(true);
+      scheduleAutosave();
+    };
+
+    editor.on("update", handleUpdate);
+    return () => {
+      editor.off("update", handleUpdate);
+    };
+  }, [editor, scheduleAutosave]);
+
   const wordCount =
     editor?.getText().trim().split(/\s+/).filter(Boolean).length || 0;
   const charCount = editor?.getText().length || 0;
+
+  const createdAtLabel = note?.created_at
+    ? new Date(note.created_at).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : "";
 
   return (
     <div className="flex flex-col h-screen bg-white overflow-hidden">
@@ -82,7 +205,7 @@ export default function NoteEditorPage() {
         <div className="text-sm text-slate-600">
           Work / Projects /{" "}
           <span className="text-slate-900 font-semibold">
-            {isCreateMode ? "New Note" : "Website Redesign"}
+            {isCreateMode ? "New Note" : title || "Untitled"}
           </span>
         </div>
 
@@ -112,23 +235,43 @@ export default function NoteEditorPage() {
           <div className="mb-10 flex items-start justify-between">
             <div className="flex-1">
               <input
-                defaultValue={isCreateMode ? "" : "Website Copy Draft"}
+                value={title}
+                onChange={(event) => {
+                  setTitle(event.target.value);
+                  setIsDirty(true);
+                  scheduleAutosave();
+                }}
                 placeholder="Note Title"
                 className="w-full text-4xl font-bold bg-transparent border-none focus:ring-0 p-0 placeholder:text-slate-300 mb-2 outline-none text-slate-900"
               />
 
               <div className="flex items-center gap-4 text-xs text-slate-500">
-                <span>October 24, 2023</span>
-                <span>4 min read</span>
+                {createdAtLabel && <span>{createdAtLabel}</span>}
+                {!isCreateMode && <span>{Math.max(1, Math.ceil(wordCount / 200))} min read</span>}
               </div>
             </div>
 
-            {!isCreateMode && (
-              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-50 text-green-600 text-xs font-medium border border-green-100">
-                <CheckCircle size={14} />
-                Auto-saved
-              </span>
-            )}
+            <div className="flex items-center gap-3">
+              {!isCreateMode && !isLoading && !error && (
+                <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-50 text-green-600 text-xs font-medium border border-green-100">
+                  <CheckCircle size={14} />
+                  {isSaving ? "Saving..." : isDirty ? "Unsaved" : "Saved"}
+                </span>
+              )}
+              {!isCreateMode && (
+                <button
+                  onClick={() => void saveNote()}
+                  disabled={isSaving || !isDirty}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                    isSaving || !isDirty
+                      ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
+                      : "bg-primary text-white border-primary hover:brightness-110"
+                  }`}
+                >
+                  {isSaving ? "Saving..." : "Save"}
+                </button>
+              )}
+            </div>
           </div>
 
           {/* TOOLBAR */}
@@ -136,6 +279,11 @@ export default function NoteEditorPage() {
 
           {/* CANVAS */}
           <div className="mt-8">
+            {error && (
+              <div className="mb-4 text-sm text-red-600">
+                {error}
+              </div>
+            )}
             <EditorContent editor={editor} />
           </div>
         </div>
@@ -146,9 +294,19 @@ export default function NoteEditorPage() {
         <span>
           {wordCount} words • {charCount} characters
         </span>
-        <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-green-500" />
-          Connected
+        <span className="flex items-center gap-4">
+          {lastSavedAt && (
+            <span>
+              Last saved {lastSavedAt.toLocaleTimeString("en-US", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </span>
+          )}
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-green-500" />
+            Connected
+          </span>
         </span>
       </footer>
     </div>
@@ -283,19 +441,19 @@ function EditorToolbar({ editor }: { editor: any }) {
         🖼
       </Button>
       <Button onClick={() => editor.chain().focus().setTextAlign("left").run()}>
-        L
+        Left
       </Button>
 
       <Button
         onClick={() => editor.chain().focus().setTextAlign("center").run()}
       >
-        C
+        Center
       </Button>
 
       <Button
         onClick={() => editor.chain().focus().setTextAlign("right").run()}
       >
-        R
+        Right
       </Button>
     </div>
   );
