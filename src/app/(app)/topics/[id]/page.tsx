@@ -1,5 +1,7 @@
 "use client";
 
+import { useParams, useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import {
   Search,
   Bell,
@@ -8,8 +10,78 @@ import {
   MoreVertical,
   Calendar,
 } from "lucide-react";
+import { notesService } from "@/app/services/notes.service";
+import { topicsService } from "@/app/services/topic.service";
+import { Note } from "@/app/types/note.types";
+import { TopicNode } from "@/app/types/topic.types";
+
+const formatDate = (value?: string | null) => {
+  if (!value) return "";
+  return new Date(value).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+};
+
+const previewFromHtml = (html: string | null) => {
+  if (!html) return "";
+  return html
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+};
 
 export default function TopicDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const topicId = params.id as string;
+
+  const [topic, setTopic] = useState<TopicNode | null>(null);
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!topicId) return;
+
+    let isActive = true;
+    setIsLoading(true);
+    setError(null);
+
+    Promise.all([
+      topicsService.getById(topicId),
+      notesService.getByTopic(topicId),
+    ])
+      .then(([topicData, notesData]) => {
+        if (!isActive) return;
+        setTopic(topicData);
+        setNotes(notesData);
+      })
+      .catch((err) => {
+        if (!isActive) return;
+        setError(err?.message || "Failed to load topic");
+      })
+      .finally(() => {
+        if (!isActive) return;
+        setIsLoading(false);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [topicId]);
+
+  const topicTitle = topic?.name || "Untitled";
+  const lastUpdatedLabel = topic?.updated_at
+    ? `Last updated ${formatDate(topic.updated_at)}`
+    : "";
+
+  const notesLabel = useMemo(() => {
+    if (isLoading) return "Loading notes";
+    return `${notes.length} notes`;
+  }, [isLoading, notes.length]);
+
   return (
     <div className="flex flex-col h-full bg-white ">
       {/* Header */}
@@ -47,9 +119,12 @@ export default function TopicDetailPage() {
             <p className="text-xs uppercase tracking-widest text-slate-500 mb-1">
               Project Folder
             </p>
-            <h2 className="text-3xl font-extrabold text-slate-900">Website Redesign</h2>
+            <h2 className="text-3xl font-extrabold text-slate-900">
+              {topicTitle}
+            </h2>
             <p className="text-slate-500 mt-1">
-              12 notes • Last updated 2 hours ago
+              {notesLabel}
+              {lastUpdatedLabel ? ` - ${lastUpdatedLabel}` : ""}
             </p>
           </div>
 
@@ -57,12 +132,21 @@ export default function TopicDetailPage() {
             <button className="bg-primary/10 text-primary px-4 py-2 rounded-lg font-bold text-sm">
               Filter
             </button>
-            <button className="bg-primary text-white px-4 py-2 rounded-lg font-bold text-sm shadow-lg shadow-primary/20 flex items-center gap-2">
+            <button
+              onClick={() => router.push(`/notes/new?topicId=${topicId}`)}
+              className="bg-primary text-white px-4 py-2 rounded-lg font-bold text-sm shadow-lg shadow-primary/20 flex items-center gap-2"
+            >
               <Plus size={16} />
               New Note
             </button>
           </div>
         </div>
+
+        {error && (
+          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
 
         {/* Tabs */}
         <div className="flex gap-8 border-b border-slate-100  mb-6">
@@ -76,48 +160,50 @@ export default function TopicDetailPage() {
 
         {/* Notes Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <NoteCard
-            tag="High Priority"
-            tagColor="amber"
-            title="Color Palette Ideas"
-            description="Exploring a new direction for the SaaS platform. We should focus on high-contrast purples and clean neutral slates..."
-            date="Oct 24, 2023"
-          />
+          {notes.map((note) => {
+            const preview = previewFromHtml(note.content);
+            const dateLabel = formatDate(note.updated_at || note.created_at);
+            const tag = note.is_pinned ? "Pinned" : "Note";
+            const tagColor = note.is_pinned ? "amber" : "slate";
 
-          <NoteCard
-            tag="Documentation"
-            tagColor="blue"
-            title="Navigation Structure"
-            description="The sidebar needs to support nested folders up to 3 levels deep. Implement accordion behavior..."
-            date="Oct 23, 2023"
-          />
+            return (
+              <NoteCard
+                key={note.id}
+                tag={tag}
+                tagColor={tagColor}
+                title={note.title || "Untitled"}
+                description={preview || "No content"}
+                date={dateLabel}
+                onClick={() => router.push(`/notes/${note.id}`)}
+              />
+            );
+          })}
 
-          <NoteCard
-            tag="Meeting"
-            tagColor="slate"
-            title="Client Feedback - V1"
-            description="Client loved the minimalism but requested more typography emphasis..."
-            date="Oct 22, 2023"
-          />
-
-          <NewNoteCard />
+          {!isLoading && (
+            <NewNoteCard
+              onClick={() => router.push(`/notes/new?topicId=${topicId}`)}
+            />
+          )}
         </div>
       </div>
     </div>
   );
 }
+
 function NoteCard({
   tag,
   tagColor,
   title,
   description,
   date,
+  onClick,
 }: {
   tag: string;
   tagColor: "amber" | "blue" | "slate";
   title: string;
   description: string;
   date: string;
+  onClick: () => void;
 }) {
   const tagStyles = {
     amber: "bg-amber-100 text-amber-700",
@@ -126,7 +212,10 @@ function NoteCard({
   };
 
   return (
-    <div className="group bg-white  border border-slate-200  p-6 rounded-xl hover:shadow-xl hover:border-primary/30 transition-all cursor-pointer">
+    <div
+      onClick={onClick}
+      className="group bg-white  border border-slate-200  p-6 rounded-xl hover:shadow-xl hover:border-primary/30 transition-all cursor-pointer"
+    >
       <div className="flex justify-between items-start mb-4">
         <span
           className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${tagStyles[tagColor]}`}
@@ -155,9 +244,13 @@ function NoteCard({
     </div>
   );
 }
-function NewNoteCard() {
+
+function NewNoteCard({ onClick }: { onClick: () => void }) {
   return (
-    <div className="border-2 border-dashed border-slate-200  p-6 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:border-primary hover:text-primary transition-all cursor-pointer min-h-55">
+    <div
+      onClick={onClick}
+      className="border-2 border-dashed border-slate-200  p-6 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:border-primary hover:text-primary transition-all cursor-pointer min-h-55"
+    >
       <div className="w-12 h-12 rounded-full bg-slate-100  flex items-center justify-center mb-3">
         <Plus />
       </div>

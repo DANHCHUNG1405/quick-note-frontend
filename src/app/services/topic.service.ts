@@ -26,6 +26,15 @@ export const topicsService = {
   },
 
   /**
+   * GET TOPIC BY ID
+   */
+  getById(id: string): Promise<TopicNode> {
+    return request<TopicNode>(`/topics/${id}`, {
+      method: "GET",
+    });
+  },
+
+  /**
    * SOFT DELETE TOPIC
    */
   remove(id: string): Promise<{ count: number }> {
