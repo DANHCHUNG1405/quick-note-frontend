@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   Search,
   Bell,
@@ -9,7 +9,10 @@ import {
   Plus,
   MoreVertical,
   Calendar,
+  Pin,
+  PinOff,
 } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { notesService } from "@/app/services/notes.service";
 import { topicsService } from "@/app/services/topic.service";
 import { Note } from "@/app/types/note.types";
@@ -37,45 +40,58 @@ export default function TopicDetailPage() {
   const router = useRouter();
   const topicId = params.id as string;
 
-  const [topic, setTopic] = useState<TopicNode | null>(null);
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    if (!topicId) return;
+  const topicQuery = useQuery<TopicNode, Error>({
+    queryKey: ["topic", topicId],
+    queryFn: () => topicsService.getById(topicId),
+    enabled: !!topicId,
+  });
 
-    let isActive = true;
-    setIsLoading(true);
-    setError(null);
+  const notesQuery = useQuery<Note[], Error>({
+    queryKey: ["notes", "topic", topicId],
+    queryFn: () => notesService.getByTopic(topicId),
+    enabled: !!topicId,
+  });
 
-    Promise.all([
-      topicsService.getById(topicId),
-      notesService.getByTopic(topicId),
-    ])
-      .then(([topicData, notesData]) => {
-        if (!isActive) return;
-        setTopic(topicData);
-        setNotes(notesData);
-      })
-      .catch((err) => {
-        if (!isActive) return;
-        setError(err?.message || "Failed to load topic");
-      })
-      .finally(() => {
-        if (!isActive) return;
-        setIsLoading(false);
-      });
+  const togglePinMutation = useMutation<
+    Note,
+    Error,
+    { id: string; isPinned: boolean }
+  >({
+    mutationFn: ({ id, isPinned }) =>
+      isPinned ? notesService.unpin(id) : notesService.pin(id),
+    onSuccess: (updated) => {
+      queryClient.setQueryData<Note[]>(
+        ["notes", "topic", topicId],
+        (current) => {
+          if (!current) return current;
+          return current.map((note) =>
+            note.id === updated.id ? { ...note, ...updated } : note,
+          );
+        },
+      );
+      queryClient.setQueryData(["note", updated.id], updated);
+    },
+  });
 
-    return () => {
-      isActive = false;
-    };
-  }, [topicId]);
-
-  const topicTitle = topic?.name || "Untitled";
-  const lastUpdatedLabel = topic?.updated_at
-    ? `Last updated ${formatDate(topic.updated_at)}`
+  const topicTitle = topicQuery.data?.name || "Untitled";
+  const lastUpdatedLabel = topicQuery.data?.updated_at
+    ? `Last updated ${formatDate(topicQuery.data.updated_at)}`
     : "";
+  const notes = notesQuery.data ?? [];
+  const isLoading = topicQuery.isLoading || notesQuery.isLoading;
+  const errorMessage =
+    topicQuery.error?.message || notesQuery.error?.message || null;
+
+  const pinnedNotes = useMemo(
+    () => notes.filter((note) => note.is_pinned),
+    [notes],
+  );
+  const otherNotes = useMemo(
+    () => notes.filter((note) => !note.is_pinned),
+    [notes],
+  );
 
   const notesLabel = useMemo(() => {
     if (isLoading) return "Loading notes";
@@ -142,9 +158,9 @@ export default function TopicDetailPage() {
           </div>
         </div>
 
-        {error && (
+        {errorMessage && (
           <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
+            {errorMessage}
           </div>
         )}
 
@@ -158,22 +174,73 @@ export default function TopicDetailPage() {
           <button className="pb-4 text-slate-500 text-sm">Trash</button>
         </div>
 
+        {pinnedNotes.length > 0 && (
+          <div className="mb-10">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-xs uppercase tracking-widest text-slate-500">
+                Pinned
+              </p>
+              <span className="text-xs text-slate-500">
+                {pinnedNotes.length} pinned
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {pinnedNotes.map((note) => {
+                const preview = previewFromHtml(note.content);
+                const dateLabel = formatDate(note.updated_at || note.created_at);
+                const isPinLoading =
+                  togglePinMutation.isPending &&
+                  togglePinMutation.variables?.id === note.id;
+
+                return (
+                  <NoteCard
+                    key={note.id}
+                    tag="Pinned"
+                    tagColor="amber"
+                    title={note.title || "Untitled"}
+                    description={preview || "No content"}
+                    date={dateLabel}
+                    isPinned
+                    isPinLoading={isPinLoading}
+                    onTogglePin={() =>
+                      togglePinMutation.mutate({
+                        id: note.id,
+                        isPinned: true,
+                      })
+                    }
+                    onClick={() => router.push(`/notes/${note.id}`)}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Notes Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {notes.map((note) => {
+          {otherNotes.map((note) => {
             const preview = previewFromHtml(note.content);
             const dateLabel = formatDate(note.updated_at || note.created_at);
-            const tag = note.is_pinned ? "Pinned" : "Note";
-            const tagColor = note.is_pinned ? "amber" : "slate";
+            const isPinLoading =
+              togglePinMutation.isPending &&
+              togglePinMutation.variables?.id === note.id;
 
             return (
               <NoteCard
                 key={note.id}
-                tag={tag}
-                tagColor={tagColor}
+                tag="Note"
+                tagColor="slate"
                 title={note.title || "Untitled"}
                 description={preview || "No content"}
                 date={dateLabel}
+                isPinned={false}
+                isPinLoading={isPinLoading}
+                onTogglePin={() =>
+                  togglePinMutation.mutate({
+                    id: note.id,
+                    isPinned: false,
+                  })
+                }
                 onClick={() => router.push(`/notes/${note.id}`)}
               />
             );
@@ -196,6 +263,9 @@ function NoteCard({
   title,
   description,
   date,
+  isPinned,
+  isPinLoading,
+  onTogglePin,
   onClick,
 }: {
   tag: string;
@@ -203,6 +273,9 @@ function NoteCard({
   title: string;
   description: string;
   date: string;
+  isPinned: boolean;
+  isPinLoading: boolean;
+  onTogglePin: () => void;
   onClick: () => void;
 }) {
   const tagStyles = {
@@ -222,9 +295,27 @@ function NoteCard({
         >
           {tag}
         </span>
-        <button className="text-slate-400 hover:text-primary">
-          <MoreVertical size={18} />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={(event) => {
+              event.stopPropagation();
+              onTogglePin();
+            }}
+            disabled={isPinLoading}
+            className={`p-1.5 rounded-lg border transition-colors ${
+              isPinned
+                ? "border-amber-200 text-amber-600 bg-amber-50"
+                : "border-slate-200 text-slate-500 hover:text-primary hover:border-primary/40"
+            } ${isPinLoading ? "opacity-60 cursor-wait" : ""}`}
+            title={isPinned ? "Unpin note" : "Pin note"}
+            aria-label={isPinned ? "Unpin note" : "Pin note"}
+          >
+            {isPinned ? <PinOff size={16} /> : <Pin size={16} />}
+          </button>
+          <button className="text-slate-400 hover:text-primary">
+            <MoreVertical size={18} />
+          </button>
+        </div>
       </div>
 
       <h3 className="text-lg font-bold mb-2 group-hover:text-primary transition-colors text-black">

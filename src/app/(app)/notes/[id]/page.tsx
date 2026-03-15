@@ -25,8 +25,9 @@ import Placeholder from "@tiptap/extension-placeholder";
 import CharacterCount from "@tiptap/extension-character-count";
 import StarterKit from "@tiptap/starter-kit";
 import UnderlineExtension from "@tiptap/extension-underline";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { notesService } from "@/app/services/notes.service";
-import { Note } from "@/app/types/note.types";
+import { Note, UpdateNotePayload } from "@/app/types/note.types";
 
 export default function NoteEditorPage() {
   const params = useParams();
@@ -34,58 +35,51 @@ export default function NoteEditorPage() {
 
   const isCreateMode = noteId === "new";
 
-  const [note, setNote] = useState<Note | null>(null);
   const [title, setTitle] = useState("");
-  const [isLoading, setIsLoading] = useState(!isCreateMode);
-  const [error, setError] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
 
   const autosaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isDirtyRef = useRef(isDirty);
-  const isSavingRef = useRef(isSaving);
+  const isSavingRef = useRef(false);
 
   useEffect(() => {
     isDirtyRef.current = isDirty;
   }, [isDirty]);
 
-  useEffect(() => {
-    isSavingRef.current = isSaving;
-  }, [isSaving]);
+  const queryClient = useQueryClient();
+
+  const noteQuery = useQuery<Note, Error>({
+    queryKey: ["note", noteId],
+    queryFn: () => notesService.getById(noteId),
+    enabled: !isCreateMode && !!noteId,
+  });
+
+  const updateNoteMutation = useMutation<Note, Error, UpdateNotePayload>({
+    mutationFn: (payload) => notesService.update(noteId, payload),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["note", noteId], updated);
+      if (updated.updated_at) {
+        setLastSavedAt(new Date(updated.updated_at));
+      } else {
+        setLastSavedAt(new Date());
+      }
+      setIsDirty(false);
+    },
+  });
 
   useEffect(() => {
-    if (isCreateMode || !noteId) return;
+    isSavingRef.current = updateNoteMutation.isPending;
+  }, [updateNoteMutation.isPending]);
 
-    let isActive = true;
-    setIsLoading(true);
-    setError(null);
+  useEffect(() => {
+    if (!noteQuery.data) return;
+    setTitle(noteQuery.data.title || "");
     setIsDirty(false);
-
-    notesService
-      .getById(noteId)
-      .then((data) => {
-        if (!isActive) return;
-        setNote(data);
-        setTitle(data.title || "");
-        setIsDirty(false);
-        if (data.updated_at) {
-          setLastSavedAt(new Date(data.updated_at));
-        }
-      })
-      .catch((err) => {
-        if (!isActive) return;
-        setError(err?.message || "Failed to load note");
-      })
-      .finally(() => {
-        if (!isActive) return;
-        setIsLoading(false);
-      });
-
-    return () => {
-      isActive = false;
-    };
-  }, [isCreateMode, noteId]);
+    if (noteQuery.data.updated_at) {
+      setLastSavedAt(new Date(noteQuery.data.updated_at));
+    }
+  }, [noteQuery.data]);
 
   const initialContent = useMemo(() => {
     if (isCreateMode) return "<p></p>";
@@ -123,25 +117,17 @@ export default function NoteEditorPage() {
     if (isCreateMode || !noteId || !editor) return;
     if (isSavingRef.current || !isDirtyRef.current) return;
 
-    setIsSaving(true);
-    setError(null);
-
     try {
       const content = editor.getHTML();
-      const payload = {
+      const payload: UpdateNotePayload = {
         title: title.trim() || "Untitled",
         content,
       };
-      const updated = await notesService.update(noteId, payload);
-      setNote(updated);
-      setLastSavedAt(new Date());
-      setIsDirty(false);
-    } catch (err: any) {
-      setError(err?.message || "Failed to save note");
-    } finally {
-      setIsSaving(false);
+      await updateNoteMutation.mutateAsync(payload);
+    } catch {
+      // Error state is handled by the mutation object.
     }
-  }, [editor, isCreateMode, noteId, title]);
+  }, [editor, isCreateMode, noteId, title, updateNoteMutation]);
 
   const scheduleAutosave = useCallback(() => {
     if (isCreateMode || !noteId) return;
@@ -164,13 +150,14 @@ export default function NoteEditorPage() {
   useEffect(() => {
     if (!editor) return;
     if (isCreateMode) return;
-    if (!note) return;
+    if (!noteQuery.data) return;
 
-    const content = note.content && note.content.trim().length > 0
-      ? note.content
-      : "<p></p>";
+    const content =
+      noteQuery.data.content && noteQuery.data.content.trim().length > 0
+        ? noteQuery.data.content
+        : "<p></p>";
     editor.commands.setContent(content, false);
-  }, [editor, isCreateMode, note]);
+  }, [editor, isCreateMode, noteQuery.data]);
 
   useEffect(() => {
     if (!editor) return;
@@ -190,13 +177,16 @@ export default function NoteEditorPage() {
     editor?.getText().trim().split(/\s+/).filter(Boolean).length || 0;
   const charCount = editor?.getText().length || 0;
 
-  const createdAtLabel = note?.created_at
-    ? new Date(note.created_at).toLocaleDateString("en-US", {
+  const createdAtLabel = noteQuery.data?.created_at
+    ? new Date(noteQuery.data.created_at).toLocaleDateString("en-US", {
         year: "numeric",
         month: "long",
         day: "numeric",
       })
     : "";
+  const isLoading = !isCreateMode && noteQuery.isLoading;
+  const errorMessage =
+    noteQuery.error?.message || updateNoteMutation.error?.message || null;
 
   return (
     <div className="flex flex-col h-screen bg-white overflow-hidden">
@@ -252,23 +242,27 @@ export default function NoteEditorPage() {
             </div>
 
             <div className="flex items-center gap-3">
-              {!isCreateMode && !isLoading && !error && (
+              {!isCreateMode && !isLoading && !errorMessage && (
                 <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-50 text-green-600 text-xs font-medium border border-green-100">
                   <CheckCircle size={14} />
-                  {isSaving ? "Saving..." : isDirty ? "Unsaved" : "Saved"}
+                  {updateNoteMutation.isPending
+                    ? "Saving..."
+                    : isDirty
+                      ? "Unsaved"
+                      : "Saved"}
                 </span>
               )}
               {!isCreateMode && (
                 <button
                   onClick={() => void saveNote()}
-                  disabled={isSaving || !isDirty}
+                  disabled={updateNoteMutation.isPending || !isDirty}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
-                    isSaving || !isDirty
+                    updateNoteMutation.isPending || !isDirty
                       ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
                       : "bg-primary text-white border-primary hover:brightness-110"
                   }`}
                 >
-                  {isSaving ? "Saving..." : "Save"}
+                  {updateNoteMutation.isPending ? "Saving..." : "Save"}
                 </button>
               )}
             </div>
@@ -279,9 +273,9 @@ export default function NoteEditorPage() {
 
           {/* CANVAS */}
           <div className="mt-8">
-            {error && (
+            {errorMessage && (
               <div className="mb-4 text-sm text-red-600">
-                {error}
+                {errorMessage}
               </div>
             )}
             <EditorContent editor={editor} />
@@ -292,7 +286,7 @@ export default function NoteEditorPage() {
       {/* FOOTER */}
       <footer className="h-10 border-t border-slate-200 bg-slate-50 flex items-center justify-between px-8 text-xs text-slate-600">
         <span>
-          {wordCount} words • {charCount} characters
+          {wordCount} words - {charCount} characters
         </span>
         <span className="flex items-center gap-4">
           {lastSavedAt && (

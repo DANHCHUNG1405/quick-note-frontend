@@ -2,6 +2,7 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import Providers from "./providers";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -21,7 +22,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable}>
       <body className="bg-background-light text-[#121117] dark:text-white min-h-screen flex flex-col">
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

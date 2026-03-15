@@ -25,7 +25,9 @@ import Placeholder from "@tiptap/extension-placeholder";
 import CharacterCount from "@tiptap/extension-character-count";
 import StarterKit from "@tiptap/starter-kit";
 import UnderlineExtension from "@tiptap/extension-underline";
+import { useMutation } from "@tanstack/react-query";
 import { notesService } from "@/app/services/notes.service";
+import { CreateNotePayload, Note } from "@/app/types/note.types";
 
 export default function NewNotePage() {
   const router = useRouter();
@@ -34,16 +36,10 @@ export default function NewNotePage() {
     searchParams.get("topicId") || searchParams.get("topic_id") || "";
 
   const [title, setTitle] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const autosaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isSavingRef = useRef(isSaving);
-
-  useEffect(() => {
-    isSavingRef.current = isSaving;
-  }, [isSaving]);
 
   const initialContent = useMemo(() => "<p></p>", []);
 
@@ -73,8 +69,12 @@ export default function NewNotePage() {
     },
   });
 
+  const createNoteMutation = useMutation<Note, Error, CreateNotePayload>({
+    mutationFn: (payload) => notesService.create(payload),
+  });
+
   const createNote = useCallback(async () => {
-    if (!editor || isSavingRef.current) return;
+    if (!editor || createNoteMutation.isPending) return;
     if (!topicId) {
       setError("Missing topic id");
       return;
@@ -84,23 +84,22 @@ export default function NewNotePage() {
     const hasContent = editor.getText().trim().length > 0;
     if (!titleTrim && !hasContent) return;
 
-    setIsSaving(true);
     setError(null);
 
     try {
-      const payload = {
+      const payload: CreateNotePayload = {
         topic_id: topicId,
         title: titleTrim || "Untitled",
         content: editor.getHTML(),
       };
-      const created = await notesService.create(payload);
+      const created = await createNoteMutation.mutateAsync(payload);
       router.replace(`/notes/${created.id}`);
-    } catch (err: any) {
-      setError(err?.message || "Failed to create note");
-    } finally {
-      setIsSaving(false);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to create note";
+      setError(message);
     }
-  }, [editor, router, title, topicId]);
+  }, [createNoteMutation, editor, router, title, topicId]);
 
   const scheduleAutosave = useCallback(() => {
     if (!topicId) return;
@@ -196,18 +195,24 @@ export default function NewNotePage() {
             <div className="flex items-center gap-3">
               <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-50 text-green-600 text-xs font-medium border border-green-100">
                 <CheckCircle size={14} />
-                {isSaving ? "Saving..." : isDirty ? "Unsaved" : "Draft"}
+                {createNoteMutation.isPending
+                  ? "Saving..."
+                  : isDirty
+                    ? "Unsaved"
+                    : "Draft"}
               </span>
               <button
                 onClick={() => void createNote()}
-                disabled={isSaving || !isDirty || !topicId}
+                disabled={
+                  createNoteMutation.isPending || !isDirty || !topicId
+                }
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
-                  isSaving || !isDirty || !topicId
+                  createNoteMutation.isPending || !isDirty || !topicId
                     ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
                     : "bg-primary text-white border-primary hover:brightness-110"
                 }`}
               >
-                {isSaving ? "Saving..." : "Save"}
+                {createNoteMutation.isPending ? "Saving..." : "Save"}
               </button>
             </div>
           </div>

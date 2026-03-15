@@ -48,4 +48,22 @@ export const notesService = {
       method: "DELETE",
     });
   },
+
+  /**
+   * PIN NOTE
+   */
+  pin(noteId: string): Promise<Note> {
+    return request<Note>(`/notes/${noteId}/pin`, {
+      method: "PATCH",
+    });
+  },
+
+  /**
+   * UNPIN NOTE
+   */
+  unpin(noteId: string): Promise<Note> {
+    return request<Note>(`/notes/${noteId}/unpin`, {
+      method: "PATCH",
+    });
+  },
 };
