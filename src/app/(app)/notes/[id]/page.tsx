@@ -14,7 +14,7 @@ import {
   Quote,
   CheckCircle,
 } from "lucide-react";
-
+import type { Editor } from "@tiptap/react";
 import { useEditor, EditorContent, useEditorState } from "@tiptap/react";
 import Strike from "@tiptap/extension-strike";
 import Highlight from "@tiptap/extension-highlight";
@@ -156,7 +156,9 @@ export default function NoteEditorPage() {
       noteQuery.data.content && noteQuery.data.content.trim().length > 0
         ? noteQuery.data.content
         : "<p></p>";
-    editor.commands.setContent(content, false);
+    editor.commands.setContent(content,  {
+  emitUpdate: false,
+});
   }, [editor, isCreateMode, noteQuery.data]);
 
   useEffect(() => {
@@ -237,7 +239,11 @@ export default function NoteEditorPage() {
 
               <div className="flex items-center gap-4 text-xs text-slate-500">
                 {createdAtLabel && <span>{createdAtLabel}</span>}
-                {!isCreateMode && <span>{Math.max(1, Math.ceil(wordCount / 200))} min read</span>}
+                {!isCreateMode && (
+                  <span>
+                    {Math.max(1, Math.ceil(wordCount / 200))} min read
+                  </span>
+                )}
               </div>
             </div>
 
@@ -274,9 +280,7 @@ export default function NoteEditorPage() {
           {/* CANVAS */}
           <div className="mt-8">
             {errorMessage && (
-              <div className="mb-4 text-sm text-red-600">
-                {errorMessage}
-              </div>
+              <div className="mb-4 text-sm text-red-600">{errorMessage}</div>
             )}
             <EditorContent editor={editor} />
           </div>
@@ -291,7 +295,8 @@ export default function NoteEditorPage() {
         <span className="flex items-center gap-4">
           {lastSavedAt && (
             <span>
-              Last saved {lastSavedAt.toLocaleTimeString("en-US", {
+              Last saved{" "}
+              {lastSavedAt.toLocaleTimeString("en-US", {
                 hour: "2-digit",
                 minute: "2-digit",
               })}
@@ -307,7 +312,7 @@ export default function NoteEditorPage() {
   );
 }
 
-function EditorToolbar({ editor }: { editor: any }) {
+function EditorToolbar({ editor }: { editor: Editor | null }) {
   const editorState = useEditorState({
     editor,
     selector: ({ editor }) => ({
@@ -350,21 +355,21 @@ function EditorToolbar({ editor }: { editor: any }) {
     <div className="sticky top-4 z-10 bg-white/90 backdrop-blur border border-slate-200 rounded-xl shadow-sm px-2 py-1.5 flex items-center gap-1 w-max">
       <Button
         onClick={() => editor.chain().focus().toggleBold().run()}
-        active={editorState.bold}
+        active={editorState?.bold}
       >
         <Bold size={18} />
       </Button>
 
       <Button
         onClick={() => editor.chain().focus().toggleItalic().run()}
-        active={editorState.italic}
+        active={editorState?.italic}
       >
         <Italic size={18} />
       </Button>
 
       <Button
         onClick={() => editor.chain().focus().toggleUnderline().run()}
-        active={editorState.underline}
+        active={editorState?.underline}
       >
         <Underline size={18} />
       </Button>
@@ -375,14 +380,14 @@ function EditorToolbar({ editor }: { editor: any }) {
         onClick={() => {
           editor.chain().focus().toggleBulletList().run();
         }}
-        active={editorState.bulletList}
+        active={editorState?.bulletList}
       >
         <List size={18} />
       </Button>
 
       <Button
         onClick={() => editor.chain().focus().toggleOrderedList().run()}
-        active={editorState.orderedList}
+        active={editorState?.orderedList}
       >
         <ListOrdered size={18} />
       </Button>
@@ -391,7 +396,7 @@ function EditorToolbar({ editor }: { editor: any }) {
 
       <Button
         onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-        active={editorState.heading}
+        active={editorState?.heading}
       >
         <Heading size={18} />
       </Button>
@@ -402,19 +407,19 @@ function EditorToolbar({ editor }: { editor: any }) {
           editor.chain().focus().toggleBlockquote().run();
           console.log("after:", editor.isActive("blockquote"));
         }}
-        active={editorState.blockquote}
+        active={editorState?.blockquote}
       >
         <Quote size={18} />
       </Button>
       <Button
         onClick={() => editor.chain().focus().toggleStrike().run()}
-        active={editorState.strike}
+        active={editorState?.strike}
       >
         S
       </Button>
       <Button
         onClick={() => editor.chain().focus().toggleHighlight().run()}
-        active={editorState.highlight}
+        active={editorState?.highlight}
       >
         H
       </Button>

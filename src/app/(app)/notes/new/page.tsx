@@ -1,7 +1,14 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Search,
   Bell,
@@ -14,7 +21,7 @@ import {
   Quote,
   CheckCircle,
 } from "lucide-react";
-
+import type { Editor } from "@tiptap/react";
 import { useEditor, EditorContent, useEditorState } from "@tiptap/react";
 import Strike from "@tiptap/extension-strike";
 import Highlight from "@tiptap/extension-highlight";
@@ -29,7 +36,7 @@ import { useMutation } from "@tanstack/react-query";
 import { notesService } from "@/app/services/notes.service";
 import { CreateNotePayload, Note } from "@/app/types/note.types";
 
-export default function NewNotePage() {
+function NewNotePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const topicId =
@@ -203,9 +210,7 @@ export default function NewNotePage() {
               </span>
               <button
                 onClick={() => void createNote()}
-                disabled={
-                  createNoteMutation.isPending || !isDirty || !topicId
-                }
+                disabled={createNoteMutation.isPending || !isDirty || !topicId}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
                   createNoteMutation.isPending || !isDirty || !topicId
                     ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
@@ -222,9 +227,7 @@ export default function NewNotePage() {
 
           {/* CANVAS */}
           <div className="mt-8">
-            {error && (
-              <div className="mb-4 text-sm text-red-600">{error}</div>
-            )}
+            {error && <div className="mb-4 text-sm text-red-600">{error}</div>}
             <EditorContent editor={editor} />
           </div>
         </div>
@@ -244,7 +247,21 @@ export default function NewNotePage() {
   );
 }
 
-function EditorToolbar({ editor }: { editor: any }) {
+export default function NewNotePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-screen text-slate-500">
+          Loading...
+        </div>
+      }
+    >
+      <NewNotePageContent />
+    </Suspense>
+  );
+}
+
+function EditorToolbar({ editor }: { editor: Editor | null }) {
   const editorState = useEditorState({
     editor,
     selector: ({ editor }) => ({
@@ -287,21 +304,21 @@ function EditorToolbar({ editor }: { editor: any }) {
     <div className="sticky top-4 z-10 bg-white/90 backdrop-blur border border-slate-200 rounded-xl shadow-sm px-2 py-1.5 flex items-center gap-1 w-max">
       <Button
         onClick={() => editor.chain().focus().toggleBold().run()}
-        active={editorState.bold}
+        active={editorState?.bold}
       >
         <Bold size={18} />
       </Button>
 
       <Button
         onClick={() => editor.chain().focus().toggleItalic().run()}
-        active={editorState.italic}
+        active={editorState?.italic}
       >
         <Italic size={18} />
       </Button>
 
       <Button
         onClick={() => editor.chain().focus().toggleUnderline().run()}
-        active={editorState.underline}
+        active={editorState?.underline}
       >
         <Underline size={18} />
       </Button>
@@ -312,14 +329,14 @@ function EditorToolbar({ editor }: { editor: any }) {
         onClick={() => {
           editor.chain().focus().toggleBulletList().run();
         }}
-        active={editorState.bulletList}
+        active={editorState?.bulletList}
       >
         <List size={18} />
       </Button>
 
       <Button
         onClick={() => editor.chain().focus().toggleOrderedList().run()}
-        active={editorState.orderedList}
+        active={editorState?.orderedList}
       >
         <ListOrdered size={18} />
       </Button>
@@ -328,7 +345,7 @@ function EditorToolbar({ editor }: { editor: any }) {
 
       <Button
         onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-        active={editorState.heading}
+        active={editorState?.heading}
       >
         <Heading size={18} />
       </Button>
@@ -337,19 +354,19 @@ function EditorToolbar({ editor }: { editor: any }) {
         onClick={() => {
           editor.chain().focus().toggleBlockquote().run();
         }}
-        active={editorState.blockquote}
+        active={editorState?.blockquote}
       >
         <Quote size={18} />
       </Button>
       <Button
         onClick={() => editor.chain().focus().toggleStrike().run()}
-        active={editorState.strike}
+        active={editorState?.strike}
       >
         S
       </Button>
       <Button
         onClick={() => editor.chain().focus().toggleHighlight().run()}
-        active={editorState.highlight}
+        active={editorState?.highlight}
       >
         H
       </Button>

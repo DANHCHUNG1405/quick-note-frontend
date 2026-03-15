@@ -18,6 +18,11 @@ export default function CreateTopicModal({ open, onClose, onCreated }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const getErrorMessage = (err: unknown, fallback: string) => {
+    if (err instanceof Error && err.message) return err.message;
+    return fallback;
+  };
+
   const flattenTopics = (
     nodes: TopicNode[],
     depth = 0,
@@ -60,8 +65,8 @@ export default function CreateTopicModal({ open, onClose, onCreated }: Props) {
         const tree = await topicsService.getTree();
         console.log("Fetched topic tree:", tree);
         setTopics(tree);
-      } catch (err: any) {
-        setError(err.message);
+      } catch (err: unknown) {
+        setError(getErrorMessage(err, "Failed to load topics"));
       }
     };
 
@@ -88,8 +93,8 @@ export default function CreateTopicModal({ open, onClose, onCreated }: Props) {
 
       onClose();
       onCreated?.(); // reload sidebar
-    } catch (err: any) {
-      setError(err.message || "Failed to create topic");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "Failed to create topic"));
     } finally {
       setLoading(false);
     }
