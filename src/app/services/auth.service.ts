@@ -3,6 +3,7 @@ import {
   LoginPayload,
   RegisterPayload,
   AuthResponse,
+  CurrentUserData,
 } from "@/app/types/auth.types";
 
 export const authService = {
@@ -30,5 +31,9 @@ export const authService = {
     return request("/auth/refresh", {
       method: "POST",
     });
+  },
+
+  me(): Promise<CurrentUserData> {
+    return request<CurrentUserData>("/me");
   },
 };

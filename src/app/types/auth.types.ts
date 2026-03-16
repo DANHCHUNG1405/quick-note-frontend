@@ -17,3 +17,9 @@ export interface AuthResponse {
     username?: string | null;
   };
 }
+
+export interface CurrentUserData {
+  userId: string;
+  email: string;
+  username?: string | null;
+}
