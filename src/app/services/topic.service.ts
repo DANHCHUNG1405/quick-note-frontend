@@ -3,6 +3,7 @@ import {
   TopicNode,
   CreateTopicPayload,
   CreateTopicResponse,
+  RenameTopicPayload,
 } from "@/app/types/topic.types";
 
 export const topicsService = {
@@ -21,6 +22,16 @@ export const topicsService = {
   create(payload: CreateTopicPayload): Promise<CreateTopicResponse> {
     return request<CreateTopicResponse>("/topics", {
       method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * RENAME TOPIC
+   */
+  rename(id: string, payload: RenameTopicPayload): Promise<CreateTopicResponse> {
+    return request<CreateTopicResponse>(`/topics/${id}/rename`, {
+      method: "PATCH",
       body: JSON.stringify(payload),
     });
   },

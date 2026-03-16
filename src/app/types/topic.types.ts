@@ -14,6 +14,10 @@ export interface CreateTopicPayload {
   parent_id?: string | null;
 }
 
+export interface RenameTopicPayload {
+  title: string;
+}
+
 export interface CreateTopicResponse {
   id: string;
   name: string;

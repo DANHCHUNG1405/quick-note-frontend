@@ -8,6 +8,8 @@ import {
   FileText,
   ChevronRight,
   ChevronDown,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -20,6 +22,10 @@ export default function Sidebar() {
   const [open, setOpen] = useState(false);
   const [topics, setTopics] = useState<TopicNode[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [busyTopicId, setBusyTopicId] = useState<string | null>(null);
+  const [renameTarget, setRenameTarget] = useState<TopicNode | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<TopicNode | null>(null);
   const pathname = usePathname();
   // Load topics lần đầu
   useEffect(() => {
@@ -29,6 +35,56 @@ export default function Sidebar() {
   const loadTopics = async () => {
     const tree = await topicsService.getTree();
     setTopics(tree);
+  };
+
+  const startRename = (topic: TopicNode) => {
+    setRenameTarget(topic);
+    setRenameValue(topic.name);
+  };
+
+  const cancelRename = () => {
+    setRenameTarget(null);
+    setRenameValue("");
+  };
+
+  const confirmRename = async () => {
+    if (!renameTarget) return;
+    const title = renameValue.trim();
+    if (!title || title === renameTarget.name) {
+      cancelRename();
+      return;
+    }
+
+    try {
+      setBusyTopicId(renameTarget.id);
+      await topicsService.rename(renameTarget.id, { title });
+      await loadTopics();
+      cancelRename();
+    } catch (err) {
+      console.error("Failed to rename topic", err);
+      alert(err instanceof Error ? err.message : "Failed to rename topic");
+    } finally {
+      setBusyTopicId(null);
+    }
+  };
+
+  const requestDelete = (topic: TopicNode) => {
+    setDeleteTarget(topic);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      setBusyTopicId(deleteTarget.id);
+      await topicsService.remove(deleteTarget.id);
+      await loadTopics();
+      setDeleteTarget(null);
+    } catch (err) {
+      console.error("Failed to delete topic", err);
+      alert(err instanceof Error ? err.message : "Failed to delete topic");
+    } finally {
+      setBusyTopicId(null);
+    }
   };
 
   const toggleExpand = (id: string) => {
@@ -90,6 +146,9 @@ export default function Sidebar() {
                 expanded={expanded}
                 toggleExpand={toggleExpand}
                 pathname={pathname}
+                onRename={startRename}
+                onDelete={requestDelete}
+                busyTopicId={busyTopicId}
               />
             ))}
           </div>
@@ -101,6 +160,96 @@ export default function Sidebar() {
         onClose={() => setOpen(false)}
         onCreated={loadTopics}
       />
+
+      {renameTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
+          onClick={cancelRename}
+        >
+          <div
+            className="w-full max-w-md rounded-xl bg-white shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-4 border-b border-slate-100">
+              <h3 className="text-lg font-semibold text-slate-900">
+                Rename Topic
+              </h3>
+              <p className="text-sm text-slate-500 mt-1">
+                Update the name for <strong>{renameTarget.name}</strong>.
+              </p>
+            </div>
+            <div className="px-6 py-4">
+              <label className="text-sm font-semibold text-slate-700">
+                New Name
+              </label>
+              <input
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void confirmRename();
+                  }
+                }}
+                autoFocus
+                className="mt-2 w-full h-11 px-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-primary/30 outline-none text-slate-900"
+              />
+            </div>
+            <div className="flex justify-end gap-3 px-6 py-4 bg-slate-50 border-t border-slate-100">
+              <button
+                onClick={cancelRename}
+                className="px-4 py-2 text-sm font-semibold text-slate-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmRename}
+                disabled={busyTopicId === renameTarget.id}
+                className="px-4 py-2 text-sm font-semibold text-white bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50"
+              >
+                {busyTopicId === renameTarget.id ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
+          onClick={() => setDeleteTarget(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-xl bg-white shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-4 border-b border-slate-100">
+              <h3 className="text-lg font-semibold text-slate-900">
+                Delete Topic
+              </h3>
+              <p className="text-sm text-slate-500 mt-1">
+                This will remove <strong>{deleteTarget.name}</strong> and all of
+                its subtopics. This action cannot be undone.
+              </p>
+            </div>
+            <div className="flex justify-end gap-3 px-6 py-4 bg-slate-50 border-t border-slate-100">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="px-4 py-2 text-sm font-semibold text-slate-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={busyTopicId === deleteTarget.id}
+                className="px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50"
+              >
+                {busyTopicId === deleteTarget.id ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }
@@ -110,21 +259,28 @@ function TopicItem({
   expanded,
   toggleExpand,
   pathname,
+  onRename,
+  onDelete,
+  busyTopicId,
 }: {
   topic: TopicNode;
   depth: number;
   expanded: Set<string>;
   toggleExpand: (id: string) => void;
   pathname: string;
+  onRename: (topic: TopicNode) => void;
+  onDelete: (topic: TopicNode) => void;
+  busyTopicId: string | null;
 }) {
   const hasChildren = topic.children?.length > 0;
   const isOpen = expanded.has(topic.id);
   const isActive = pathname === `/topics/${topic.id}`;
+  const isBusy = busyTopicId === topic.id;
 
   return (
     <>
       <div
-        className={`flex items-center justify-between px-3 py-2 rounded-lg font-medium transition-colors ${
+        className={`group flex items-center justify-between px-3 py-2 rounded-lg font-medium transition-colors ${
           isActive
             ? "bg-primary/10 text-primary"
             : "text-slate-600 hover:bg-slate-50"
@@ -148,12 +304,38 @@ function TopicItem({
           )}
 
           {/* Link */}
-          <Link
-            href={`/topics/${topic.id}`}
-            className="text-sm truncate flex-1"
-          >
+          <Link href={`/topics/${topic.id}`} className="text-sm truncate flex-1">
             {topic.name}
           </Link>
+        </div>
+
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onRename(topic);
+            }}
+            disabled={isBusy}
+            className="p-1 rounded hover:bg-slate-200 text-slate-500 disabled:opacity-50"
+            aria-label="Rename topic"
+            title="Rename"
+          >
+            <Pencil size={14} />
+          </button>
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onDelete(topic);
+            }}
+            disabled={isBusy}
+            className="p-1 rounded hover:bg-slate-200 text-slate-500 disabled:opacity-50"
+            aria-label="Delete topic"
+            title="Delete"
+          >
+            <Trash2 size={14} />
+          </button>
         </div>
       </div>
 
@@ -167,6 +349,9 @@ function TopicItem({
             expanded={expanded}
             toggleExpand={toggleExpand}
             pathname={pathname}
+            onRename={onRename}
+            onDelete={onDelete}
+            busyTopicId={busyTopicId}
           />
         ))}
     </>
