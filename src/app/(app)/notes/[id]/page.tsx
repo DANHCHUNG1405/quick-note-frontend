@@ -1,6 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Search,
@@ -19,7 +20,7 @@ import { useEditor, EditorContent, useEditorState } from "@tiptap/react";
 import Strike from "@tiptap/extension-strike";
 import Highlight from "@tiptap/extension-highlight";
 import TextAlign from "@tiptap/extension-text-align";
-import Link from "@tiptap/extension-link";
+import TiptapLink from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
 import CharacterCount from "@tiptap/extension-character-count";
@@ -28,6 +29,8 @@ import UnderlineExtension from "@tiptap/extension-underline";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { notesService } from "@/app/services/notes.service";
 import { Note, UpdateNotePayload } from "@/app/types/note.types";
+import { topicsService } from "@/app/services/topic.service";
+import type { TopicNode } from "@/app/types/topic.types";
 
 export default function NoteEditorPage() {
   const params = useParams();
@@ -53,6 +56,13 @@ export default function NoteEditorPage() {
     queryKey: ["note", noteId],
     queryFn: () => notesService.getById(noteId),
     enabled: !isCreateMode && !!noteId,
+  });
+
+  const topicId = noteQuery.data?.topic_id ?? null;
+  const topicsQuery = useQuery<TopicNode[], Error>({
+    queryKey: ["topics", "tree"],
+    queryFn: () => topicsService.getTree(),
+    enabled: !!topicId,
   });
 
   const updateNoteMutation = useMutation<Note, Error, UpdateNotePayload>({
@@ -87,13 +97,37 @@ export default function NoteEditorPage() {
     return "<p></p>";
   }, [isCreateMode]);
 
+  const topicPath = useMemo(() => {
+    if (!topicId || !topicsQuery.data) return [];
+
+    const findPath = (
+      nodes: TopicNode[],
+      targetId: string,
+    ): TopicNode[] | null => {
+      for (const node of nodes) {
+        if (node.id === targetId) {
+          return [node];
+        }
+        if (node.children?.length) {
+          const childPath = findPath(node.children, targetId);
+          if (childPath) {
+            return [node, ...childPath];
+          }
+        }
+      }
+      return null;
+    };
+
+    return findPath(topicsQuery.data, topicId) ?? [];
+  }, [topicId, topicsQuery.data]);
+
   const editor = useEditor({
     extensions: [
       StarterKit,
       UnderlineExtension,
       Strike,
       Highlight,
-      Link,
+      TiptapLink,
       Image,
       Placeholder.configure({
         placeholder: "Start writing your note...",
@@ -194,8 +228,28 @@ export default function NoteEditorPage() {
     <div className="flex flex-col h-screen bg-white overflow-hidden">
       {/* HEADER */}
       <header className="h-16 flex items-center justify-between px-8 border-b border-slate-200">
-        <div className="text-sm text-slate-600">
-          Work / Projects /{" "}
+        <div className="text-sm text-slate-600 flex items-center flex-wrap gap-1">
+          {topicPath.length > 0 ? (
+            <>
+              {topicPath.map((topic) => (
+                <span key={topic.id} className="flex items-center gap-1">
+                  <Link
+                    href={`/topics/${topic.id}`}
+                    className="hover:text-primary transition-colors"
+                  >
+                    {topic.name}
+                  </Link>
+                  <span className="text-slate-400">/</span>
+                </span>
+              ))}
+            </>
+          ) : (
+            !isCreateMode && (
+              <span className="text-slate-400">
+                {topicsQuery.isLoading ? "Loading..." : "No topic"}
+              </span>
+            )
+          )}
           <span className="text-slate-900 font-semibold">
             {isCreateMode ? "New Note" : title || "Untitled"}
           </span>
