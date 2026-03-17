@@ -11,6 +11,7 @@ import {
   Calendar,
   Pin,
   PinOff,
+  Trash2,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { notesService } from "@/app/services/notes.service";
@@ -72,6 +73,17 @@ export default function TopicDetailPage() {
         },
       );
       queryClient.setQueryData(["note", updated.id], updated);
+    },
+  });
+
+  const deleteNoteMutation = useMutation<{ count: number }, Error, string>({
+    mutationFn: (noteIdToDelete) => notesService.delete(noteIdToDelete),
+    onSuccess: (_result, deletedId) => {
+      queryClient.setQueryData<Note[]>(
+        ["notes", "topic", topicId],
+        (current) => current?.filter((note) => note.id !== deletedId) ?? [],
+      );
+      queryClient.removeQueries({ queryKey: ["note", deletedId] });
     },
   });
 
@@ -169,8 +181,6 @@ export default function TopicDetailPage() {
           <button className="pb-4 border-b-2 border-primary text-primary font-bold text-sm">
             All Notes
           </button>
-          <button className="pb-4 text-slate-500 text-sm">Recent</button>
-          <button className="pb-4 text-slate-500 text-sm">Archived</button>
           <button className="pb-4 text-slate-500 text-sm">Trash</button>
         </div>
 
@@ -187,10 +197,15 @@ export default function TopicDetailPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {pinnedNotes.map((note) => {
                 const preview = previewFromHtml(note.content);
-                const dateLabel = formatDate(note.updated_at || note.created_at);
+                const dateLabel = formatDate(
+                  note.updated_at || note.created_at,
+                );
                 const isPinLoading =
                   togglePinMutation.isPending &&
                   togglePinMutation.variables?.id === note.id;
+                const isDeleteLoading =
+                  deleteNoteMutation.isPending &&
+                  deleteNoteMutation.variables === note.id;
 
                 return (
                   <NoteCard
@@ -202,12 +217,23 @@ export default function TopicDetailPage() {
                     date={dateLabel}
                     isPinned
                     isPinLoading={isPinLoading}
+                    isDeleteLoading={isDeleteLoading}
                     onTogglePin={() =>
                       togglePinMutation.mutate({
                         id: note.id,
                         isPinned: true,
                       })
                     }
+                    onDelete={() => {
+                      if (
+                        !window.confirm(
+                          "Are you sure you want to delete this note?",
+                        )
+                      ) {
+                        return;
+                      }
+                      deleteNoteMutation.mutate(note.id);
+                    }}
                     onClick={() => router.push(`/notes/${note.id}`)}
                   />
                 );
@@ -224,6 +250,9 @@ export default function TopicDetailPage() {
             const isPinLoading =
               togglePinMutation.isPending &&
               togglePinMutation.variables?.id === note.id;
+            const isDeleteLoading =
+              deleteNoteMutation.isPending &&
+              deleteNoteMutation.variables === note.id;
 
             return (
               <NoteCard
@@ -235,12 +264,23 @@ export default function TopicDetailPage() {
                 date={dateLabel}
                 isPinned={false}
                 isPinLoading={isPinLoading}
+                isDeleteLoading={isDeleteLoading}
                 onTogglePin={() =>
                   togglePinMutation.mutate({
                     id: note.id,
                     isPinned: false,
                   })
                 }
+                onDelete={() => {
+                  if (
+                    !window.confirm(
+                      "Are you sure you want to delete this note?",
+                    )
+                  ) {
+                    return;
+                  }
+                  deleteNoteMutation.mutate(note.id);
+                }}
                 onClick={() => router.push(`/notes/${note.id}`)}
               />
             );
@@ -265,7 +305,9 @@ function NoteCard({
   date,
   isPinned,
   isPinLoading,
+  isDeleteLoading,
   onTogglePin,
+  onDelete,
   onClick,
 }: {
   tag: string;
@@ -275,7 +317,9 @@ function NoteCard({
   date: string;
   isPinned: boolean;
   isPinLoading: boolean;
+  isDeleteLoading: boolean;
   onTogglePin: () => void;
+  onDelete: () => void;
   onClick: () => void;
 }) {
   const tagStyles = {
@@ -312,8 +356,19 @@ function NoteCard({
           >
             {isPinned ? <PinOff size={16} /> : <Pin size={16} />}
           </button>
-          <button className="text-slate-400 hover:text-primary">
-            <MoreVertical size={18} />
+          <button
+            onClick={(event) => {
+              event.stopPropagation();
+              onDelete();
+            }}
+            disabled={isDeleteLoading}
+            className={`p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:text-red-600 hover:border-red-200 transition-colors ${
+              isDeleteLoading ? "opacity-60 cursor-wait" : ""
+            }`}
+            title="Delete note"
+            aria-label="Delete note"
+          >
+            <Trash2 size={16} />
           </button>
         </div>
       </div>
@@ -322,9 +377,7 @@ function NoteCard({
         {title}
       </h3>
 
-      <p className="text-slate-600  text-sm line-clamp-3 mb-4">
-        {description}
-      </p>
+      <p className="text-slate-600  text-sm line-clamp-3 mb-4">{description}</p>
 
       <div className="flex items-center justify-between pt-4 border-t border-slate-100 ">
         <div className="flex items-center gap-2 text-slate-500 text-xs">

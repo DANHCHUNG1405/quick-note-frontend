@@ -119,12 +119,14 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
-        <SidebarItem
-          icon={<LayoutDashboard size={18} />}
-          label="Dashboard"
-          active
-        />
-        <SidebarItem icon={<Star size={18} />} label="Favorites" />
+        <Link href="/">
+          <SidebarItem
+            icon={<LayoutDashboard size={18} />}
+            label="Dashboard"
+            active
+          />
+        </Link>
+
         <SidebarItem icon={<Settings size={18} />} label="Settings" />
 
         <div className="pt-8 px-3">
@@ -304,7 +306,10 @@ function TopicItem({
           )}
 
           {/* Link */}
-          <Link href={`/topics/${topic.id}`} className="text-sm truncate flex-1">
+          <Link
+            href={`/topics/${topic.id}`}
+            className="text-sm truncate flex-1"
+          >
             {topic.name}
           </Link>
         </div>

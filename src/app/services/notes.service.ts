@@ -31,6 +31,13 @@ export const notesService = {
   },
 
   /**
+   * GET RECENT NOTES
+   */
+  getRecent(): Promise<Note[]> {
+    return request<Note[]>("/notes/recent");
+  },
+
+  /**
    * UPDATE NOTE
    */
   update(noteId: string, payload: UpdateNotePayload): Promise<Note> {
