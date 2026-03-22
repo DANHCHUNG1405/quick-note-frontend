@@ -14,12 +14,12 @@ export interface AuthResponse {
   user?: {
     id: string;
     email: string;
-    username?: string | null;
+    fullname?: string | null;
   };
 }
 
 export interface CurrentUserData {
   userId: string;
   email: string;
-  username?: string | null;
+  fullname?: string | null;
 }

@@ -20,3 +20,23 @@ export interface UpdateNotePayload {
   content?: string;
   is_pinned?: boolean;
 }
+
+export type SharePermission = "view" | "edit";
+
+export interface NoteShare {
+  user_id: string;
+  email?: string;
+  name?: string;
+  permission: SharePermission | string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ShareNotePayload {
+  email: string;
+  permission: SharePermission;
+}
+
+export interface UpdateSharePayload {
+  permission: SharePermission;
+}

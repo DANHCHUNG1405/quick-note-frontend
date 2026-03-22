@@ -2,7 +2,6 @@
 
 import {
   LayoutDashboard,
-  Star,
   Settings,
   Plus,
   FileText,
@@ -10,6 +9,7 @@ import {
   ChevronDown,
   Pencil,
   Trash2,
+  Share2,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -123,7 +123,15 @@ export default function Sidebar() {
           <SidebarItem
             icon={<LayoutDashboard size={18} />}
             label="Dashboard"
-            active
+            active={pathname === "/"}
+          />
+        </Link>
+
+        <Link href="/shared">
+          <SidebarItem
+            icon={<Share2 size={18} />}
+            label="Shared"
+            active={pathname === "/shared"}
           />
         </Link>
 

@@ -3,6 +3,9 @@ import {
   Note,
   CreateNotePayload,
   UpdateNotePayload,
+  NoteShare,
+  ShareNotePayload,
+  UpdateSharePayload,
 } from "@/app/types/note.types";
 
 export const notesService = {
@@ -35,6 +38,13 @@ export const notesService = {
    */
   getRecent(): Promise<Note[]> {
     return request<Note[]>("/notes/recent");
+  },
+
+  /**
+   * GET NOTES SHARED WITH ME
+   */
+  getSharedWithMe(): Promise<Note[]> {
+    return request<Note[]>("/notes/shared");
   },
 
   /**
@@ -72,5 +82,48 @@ export const notesService = {
     return request<Note>(`/notes/${noteId}/unpin`, {
       method: "PATCH",
     });
+  },
+
+  /**
+   * LIST SHARES FOR A NOTE
+   */
+  listShares(noteId: string): Promise<NoteShare[]> {
+    return request<NoteShare[]>(`/notes/${noteId}/shares`);
+  },
+
+  /**
+   * SHARE NOTE WITH A USER
+   */
+  shareNote(noteId: string, payload: ShareNotePayload): Promise<NoteShare> {
+    return request<NoteShare>(`/notes/${noteId}/share`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * UPDATE SHARE PERMISSION
+   */
+  updateSharePermission(
+    noteId: string,
+    shareUserId: string,
+    payload: UpdateSharePayload,
+  ): Promise<NoteShare> {
+    return request<NoteShare>(`/notes/${noteId}/share/${shareUserId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * REMOVE SHARE
+   */
+  removeShare(noteId: string, shareUserId: string): Promise<{ count: number }> {
+    return request<{ count: number }>(
+      `/notes/${noteId}/share/${shareUserId}`,
+      {
+        method: "DELETE",
+      },
+    );
   },
 };
