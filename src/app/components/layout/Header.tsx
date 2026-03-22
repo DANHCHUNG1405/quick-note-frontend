@@ -6,7 +6,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { authService } from "@/app/services/auth.service";
 import { notificationsService } from "@/app/services/notifications.service";
 import type { CurrentUserData } from "@/app/types/auth.types";
-import type { NotificationItem } from "@/app/types/notification.types";
+import type {
+  NotificationItem,
+  NotificationSocketPayload,
+} from "@/app/types/notification.types";
+import { useNotificationsSocket } from "@/app/hooks/useNotificationsSocket";
 import { useRouter } from "next/navigation";
 
 export default function Header() {
@@ -44,6 +48,37 @@ export default function Header() {
   const notificationsQuery = useQuery<NotificationItem[], Error>({
     queryKey: ["notifications"],
     queryFn: () => notificationsService.list(),
+  });
+
+  useNotificationsSocket({
+    onNotification: (payload: NotificationSocketPayload) => {
+      const nextNotification: NotificationItem = {
+        ...payload,
+        is_read: payload.is_read ?? false,
+        created_at: payload.created_at ?? null,
+      };
+
+      queryClient.setQueryData<NotificationItem[]>(
+        ["notifications"],
+        (current) => {
+          const list = current ?? [];
+          const existingIndex = list.findIndex(
+            (item) => item.id === nextNotification.id,
+          );
+
+          if (existingIndex >= 0) {
+            const nextList = [...list];
+            nextList[existingIndex] = {
+              ...nextList[existingIndex],
+              ...nextNotification,
+            };
+            return nextList;
+          }
+
+          return [nextNotification, ...list];
+        },
+      );
+    },
   });
 
   const markReadMutation = useMutation({
