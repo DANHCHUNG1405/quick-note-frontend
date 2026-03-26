@@ -140,7 +140,10 @@ export default function NoteEditorPage() {
   });
 
   const updateShareMutation = useMutation({
-    mutationFn: (payload: { shareUserId: string; permission: SharePermission }) =>
+    mutationFn: (payload: {
+      shareUserId: string;
+      permission: SharePermission;
+    }) =>
       notesService.updateSharePermission(noteId, payload.shareUserId, {
         permission: payload.permission,
       }),
@@ -284,9 +287,9 @@ export default function NoteEditorPage() {
       noteQuery.data.content && noteQuery.data.content.trim().length > 0
         ? noteQuery.data.content
         : "<p></p>";
-    editor.commands.setContent(content,  {
-  emitUpdate: false,
-});
+    editor.commands.setContent(content, {
+      emitUpdate: false,
+    });
   }, [editor, isCreateMode, noteQuery.data]);
 
   useEffect(() => {
@@ -542,7 +545,7 @@ export default function NoteEditorPage() {
           aria-modal="true"
         >
           <div
-            className="bg-white w-full max-w-[520px] rounded-lg shadow-2xl overflow-hidden border border-slate-200"
+            className="bg-white w-full max-w-130 rounded-lg shadow-2xl overflow-hidden border border-slate-200"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center">
@@ -580,7 +583,9 @@ export default function NoteEditorPage() {
                       className="bg-transparent border-none text-xs font-semibold text-slate-600 focus:ring-0 cursor-pointer pl-2 pr-8"
                       value={sharePermission}
                       onChange={(event) =>
-                        setSharePermission(event.target.value as SharePermission)
+                        setSharePermission(
+                          event.target.value as SharePermission,
+                        )
                       }
                     >
                       <option value="edit">Can edit</option>

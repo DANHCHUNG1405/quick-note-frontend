@@ -57,14 +57,12 @@ export const useNotificationsSocket = ({
     socket.on("connect", handleConnect);
     socket.on("disconnect", handleDisconnect);
     socket.on("connect_error", handleError);
-    socket.on("error", handleError);
     socket.on("notification", handleNotification);
 
     return () => {
       socket.off("connect", handleConnect);
       socket.off("disconnect", handleDisconnect);
       socket.off("connect_error", handleError);
-      socket.off("error", handleError);
       socket.off("notification", handleNotification);
       releaseNotificationsSocket();
     };
