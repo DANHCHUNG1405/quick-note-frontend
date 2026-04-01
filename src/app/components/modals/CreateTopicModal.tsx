@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { ChevronDown, ChevronRight, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { topicsService } from "@/app/services/topic.service";
 import type { TopicNode } from "@/app/types/topic.types";
@@ -17,34 +17,91 @@ export default function CreateTopicModal({ open, onClose, onCreated }: Props) {
   const [topics, setTopics] = useState<TopicNode[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   const getErrorMessage = (err: unknown, fallback: string) => {
     if (err instanceof Error && err.message) return err.message;
     return fallback;
   };
 
-  const flattenTopics = (
+  const findTopicName = (
     nodes: TopicNode[],
-    depth = 0,
-  ): { id: string; name: string; depth: number }[] => {
-    let result: { id: string; name: string; depth: number }[] = [];
-
+    id: string,
+  ): string | null => {
     for (const node of nodes) {
-      result.push({
-        id: node.id,
-        name: node.name,
-        depth,
-      });
-
+      if (node.id === id) return node.name;
       if (node.children?.length) {
-        result = result.concat(flattenTopics(node.children, depth + 1));
+        const found = findTopicName(node.children, id);
+        if (found) return found;
       }
     }
-
-    return result;
+    return null;
   };
 
-  const flattenedTopics = flattenTopics(topics);
+  const selectedParentName = parentId
+    ? findTopicName(topics, parentId)
+    : null;
+
+  const toggleExpanded = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const renderTopicNode = (node: TopicNode, depth = 0) => {
+    const hasChildren = !!node.children?.length;
+    const isExpanded = expandedIds.has(node.id);
+
+    return (
+      <div key={node.id} className="space-y-1">
+        <div
+          className="flex items-center gap-2 rounded-md px-2 py-2 hover:bg-slate-50"
+          style={{ paddingLeft: `${Math.min(depth, 4) * 14 + 8}px` }}
+        >
+          {hasChildren ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleExpanded(node.id);
+              }}
+              className="flex h-6 w-6 items-center justify-center rounded-md hover:bg-slate-100 text-slate-500"
+              aria-label={isExpanded ? "Collapse" : "Expand"}
+            >
+              {isExpanded ? (
+                <ChevronDown size={16} />
+              ) : (
+                <ChevronRight size={16} />
+              )}
+            </button>
+          ) : (
+            <span className="h-6 w-6" />
+          )}
+
+          <button
+            type="button"
+            onClick={() => {
+              setParentId(node.id);
+              setDropdownOpen(false);
+            }}
+            className="flex-1 text-left text-sm font-medium text-slate-700 hover:text-slate-900"
+          >
+            {node.name}
+          </button>
+        </div>
+
+        {hasChildren && isExpanded && (
+          <div className="space-y-1">
+            {node.children?.map((child) => renderTopicNode(child, depth + 1))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // ESC close
   useEffect(() => {
@@ -71,6 +128,13 @@ export default function CreateTopicModal({ open, onClose, onCreated }: Props) {
     };
 
     fetchTopics();
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      setDropdownOpen(false);
+      setExpandedIds(new Set());
+    }
   }, [open]);
 
   const handleSubmit = async () => {
@@ -108,7 +172,7 @@ export default function CreateTopicModal({ open, onClose, onCreated }: Props) {
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-lg bg-white rounded-xl shadow-2xl overflow-hidden"
+        className="relative w-full max-w-lg bg-white rounded-xl shadow-2xl overflow-visible"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -148,21 +212,55 @@ export default function CreateTopicModal({ open, onClose, onCreated }: Props) {
             <label className="text-sm font-semibold text-slate-700">
               Parent Topic
             </label>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setDropdownOpen((prev) => !prev)}
+                className="flex w-full h-12 items-center justify-between rounded-lg border border-slate-200 bg-slate-50/60 px-4 text-left text-slate-900 shadow-sm hover:bg-white focus:outline-none focus:ring-2 focus:ring-primary/40"
+              >
+                <span
+                  className={`text-sm ${selectedParentName ? "text-slate-900" : "text-slate-400"}`}
+                >
+                  {selectedParentName || "None (Root Level)"}
+                </span>
+                <ChevronDown
+                  size={18}
+                  className={`text-slate-400 transition-transform ${
+                    dropdownOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
 
-            <select
-              value={parentId ?? ""}
-              onChange={(e) => setParentId(e.target.value || null)}
-              className="appearance-none w-full h-12 px-4 pr-10 rounded-lg border border-slate-200 bg-white text-slate-900 focus:ring-2 focus:ring-primary focus:border-primary transition-all outline-none cursor-pointer"
-            >
-              <option value="">None (Root Level)</option>
+              {dropdownOpen && (
+                <div className="absolute z-20 mt-2 w-full rounded-lg border border-slate-200 bg-white shadow-lg">
+                  <div className="max-h-64 overflow-auto py-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setParentId(null);
+                        setDropdownOpen(false);
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      None (Root Level)
+                    </button>
 
-              {flattenedTopics.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {"— ".repeat(t.depth)}
-                  {t.name}
-                </option>
-              ))}
-            </select>
+                    <div className="mt-1 space-y-1">
+                      {topics.length ? (
+                        topics.map((node) => renderTopicNode(node))
+                      ) : (
+                        <div className="px-3 py-2 text-sm text-slate-400">
+                          No topics available
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-slate-500">
+              Optional. Select a parent to nest this topic.
+            </p>
           </div>
 
           {error && <p className="text-sm text-red-500">{error}</p>}
@@ -189,3 +287,5 @@ export default function CreateTopicModal({ open, onClose, onCreated }: Props) {
     </div>
   );
 }
+
+
