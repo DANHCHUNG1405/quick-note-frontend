@@ -11,6 +11,7 @@ export interface LoginPayload {
 
 export interface AuthResponse {
   message: string;
+  access_token?: string;
   user?: {
     id: string;
     email: string;

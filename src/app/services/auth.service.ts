@@ -1,4 +1,6 @@
 import { request } from "@/app/lib/api";
+import { clearAccessToken } from "@/app/lib/authToken";
+import { resetNotificationsSocket } from "@/app/lib/notificationsSocket";
 import {
   LoginPayload,
   RegisterPayload,
@@ -22,8 +24,11 @@ export const authService = {
   },
 
   logout(): Promise<{ message: string }> {
-    return request("/auth/logout", {
+    return request<{ message: string }>("/auth/logout", {
       method: "POST",
+    }).finally(() => {
+      clearAccessToken();
+      resetNotificationsSocket();
     });
   },
 

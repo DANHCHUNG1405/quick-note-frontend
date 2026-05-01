@@ -2,6 +2,7 @@
 
 import { io, type ManagerOptions, type Socket, type SocketOptions } from "socket.io-client";
 import type { NotificationSocketPayload } from "@/app/types/notification.types";
+import { getAccessToken } from "@/app/lib/authToken";
 
 type ServerToClientEvents = {
   notification: (payload: NotificationSocketPayload) => void;
@@ -31,22 +32,10 @@ let refCount = 0;
 
 const isBrowser = () => typeof window !== "undefined";
 
-const readStoredToken = (): string | null => {
-  if (!isBrowser()) return null;
-  try {
-    return (
-      window.localStorage.getItem("access_token") ??
-      window.localStorage.getItem("token")
-    );
-  } catch {
-    return null;
-  }
-};
-
 const ensureSocket = (token?: string | null): NotificationsSocket | null => {
   if (!isBrowser()) return null;
 
-  const nextToken = token ?? readStoredToken();
+  const nextToken = token ?? getAccessToken();
 
   if (!socket) {
     socket = io(SOCKET_URL, {
