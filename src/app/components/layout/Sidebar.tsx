@@ -5,6 +5,7 @@ import {
   Settings,
   Plus,
   FileText,
+  CheckSquare,
   ChevronRight,
   ChevronDown,
   Pencil,
@@ -132,6 +133,14 @@ export default function Sidebar() {
             icon={<Share2 size={18} />}
             label="Shared"
             active={pathname === "/shared"}
+          />
+        </Link>
+
+        <Link href="/todos">
+          <SidebarItem
+            icon={<CheckSquare size={18} />}
+            label="Todos"
+            active={pathname === "/todos"}
           />
         </Link>
 

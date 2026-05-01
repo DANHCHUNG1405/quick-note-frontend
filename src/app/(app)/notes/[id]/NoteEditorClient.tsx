@@ -28,6 +28,10 @@ import NoteTitleSection from "./components/NoteTitleSection";
 import EditorToolbar from "@/app/components/notes/EditorToolbar";
 import NoteFooter from "@/app/components/notes/NoteFooter";
 import ShareModal from "./components/ShareModal";
+import RelatedTodos from "@/app/components/todos/RelatedTodos";
+import RelatedTodoGroups from "@/app/components/todos/RelatedTodoGroups";
+import UnsavedChangesDialog from "@/app/components/notes/UnsavedChangesDialog";
+import { useUnsavedChangesGuard } from "@/app/hooks/useUnsavedChangesGuard";
 
 export default function NoteEditorClient({ noteId }: { noteId: string }) {
 
@@ -49,7 +53,6 @@ export default function NoteEditorClient({ noteId }: { noteId: string }) {
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied">("idle");
   */
 
-  const autosaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isDirtyRef = useRef(isDirty);
   const isSavingRef = useRef(false);
 
@@ -241,37 +244,27 @@ export default function NoteEditorClient({ noteId }: { noteId: string }) {
         content,
       };
       await updateNoteMutation.mutateAsync(payload);
+      return true;
     } catch {
-      // Error state is handled by the mutation object.
+      return false;
     }
   }, [editor, isCreateMode, noteId, title, updateNoteMutation]);
 
-  const scheduleAutosave = useCallback(() => {
-    if (isCreateMode || !noteId) return;
-    if (autosaveTimeoutRef.current) {
-      clearTimeout(autosaveTimeoutRef.current);
-    }
-    autosaveTimeoutRef.current = setTimeout(() => {
-      void saveNote();
-    }, 10000);
-  }, [isCreateMode, noteId, saveNote]);
+  const unsavedChangesGuard = useUnsavedChangesGuard({
+    enabled: isDirty,
+    onSave: async () => {
+      if (!isDirtyRef.current) return true;
+      return (await saveNote()) ?? false;
+    },
+  });
 
   const handleTitleChange = useCallback(
     (value: string) => {
       setTitle(value);
       setIsDirty(true);
-      scheduleAutosave();
     },
-    [scheduleAutosave],
+    [],
   );
-
-  useEffect(() => {
-    return () => {
-      if (autosaveTimeoutRef.current) {
-        clearTimeout(autosaveTimeoutRef.current);
-      }
-    };
-  }, []);
 
   useEffect(() => {
     if (!editor) return;
@@ -292,14 +285,13 @@ export default function NoteEditorClient({ noteId }: { noteId: string }) {
 
     const handleUpdate = () => {
       setIsDirty(true);
-      scheduleAutosave();
     };
 
     editor.on("update", handleUpdate);
     return () => {
       editor.off("update", handleUpdate);
     };
-  }, [editor, scheduleAutosave]);
+  }, [editor]);
 
   const wordCount =
     editor?.getText().trim().split(/\s+/).filter(Boolean).length || 0;
@@ -428,6 +420,19 @@ export default function NoteEditorClient({ noteId }: { noteId: string }) {
             )}
             <EditorContent editor={editor} />
           </div>
+
+          {!isCreateMode && noteId && (
+            <>
+              <RelatedTodoGroups
+                noteId={noteId}
+                topicId={noteQuery.data?.topic_id}
+              />
+              <RelatedTodos
+                noteId={noteId}
+                topicId={noteQuery.data?.topic_id}
+              />
+            </>
+          )}
         </div>
       </div>
 
@@ -458,6 +463,14 @@ export default function NoteEditorClient({ noteId }: { noteId: string }) {
         onPermissionChange={(shareUserId, permission) =>
           void handlePermissionChange(shareUserId, permission)
         }
+      />
+
+      <UnsavedChangesDialog
+        open={unsavedChangesGuard.dialogOpen}
+        saving={unsavedChangesGuard.saving}
+        onSave={() => void unsavedChangesGuard.handleSaveAndLeave()}
+        onDiscard={unsavedChangesGuard.handleDiscard}
+        onCancel={unsavedChangesGuard.handleCancel}
       />
     </div>
   );

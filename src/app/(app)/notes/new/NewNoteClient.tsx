@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEditor, EditorContent } from "@tiptap/react";
 import Strike from "@tiptap/extension-strike";
@@ -19,6 +19,8 @@ import NoteHeader from "./components/NoteHeader";
 import NewNoteTitleSection from "./components/NewNoteTitleSection";
 import EditorToolbar from "@/app/components/notes/EditorToolbar";
 import NoteFooter from "@/app/components/notes/NoteFooter";
+import UnsavedChangesDialog from "@/app/components/notes/UnsavedChangesDialog";
+import { useUnsavedChangesGuard } from "@/app/hooks/useUnsavedChangesGuard";
 
 function NewNoteClientContent() {
   const router = useRouter();
@@ -29,8 +31,6 @@ function NewNoteClientContent() {
   const [title, setTitle] = useState("");
   const [isDirty, setIsDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const autosaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const initialContent = useMemo(() => "<p></p>", []);
 
@@ -64,16 +64,16 @@ function NewNoteClientContent() {
     mutationFn: (payload) => notesService.create(payload),
   });
 
-  const createNote = useCallback(async () => {
+  const createNote = useCallback(async (redirectToCreated = true) => {
     if (!editor || createNoteMutation.isPending) return;
     if (!topicId) {
       setError("Missing topic id");
-      return;
+      return false;
     }
 
     const titleTrim = title.trim();
     const hasContent = editor.getText().trim().length > 0;
-    if (!titleTrim && !hasContent) return;
+    if (!titleTrim && !hasContent) return true;
 
     setError(null);
 
@@ -84,45 +84,36 @@ function NewNoteClientContent() {
         content: editor.getHTML(),
       };
       const created = await createNoteMutation.mutateAsync(payload);
-      router.replace(`/notes/${created.id}`);
+      setIsDirty(false);
+      if (redirectToCreated) {
+        router.replace(`/notes/${created.id}`);
+      }
+      return true;
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to create note";
       setError(message);
+      return false;
     }
   }, [createNoteMutation, editor, router, title, topicId]);
 
-  const scheduleAutosave = useCallback(() => {
-    if (!topicId) return;
-    if (autosaveTimeoutRef.current) {
-      clearTimeout(autosaveTimeoutRef.current);
-    }
-    autosaveTimeoutRef.current = setTimeout(() => {
-      void createNote();
-    }, 10000);
-  }, [createNote, topicId]);
-
-  useEffect(() => {
-    return () => {
-      if (autosaveTimeoutRef.current) {
-        clearTimeout(autosaveTimeoutRef.current);
-      }
-    };
-  }, []);
+  const unsavedChangesGuard = useUnsavedChangesGuard({
+    enabled: isDirty,
+    onSave: async () => createNote(false),
+  });
 
   useEffect(() => {
     if (!editor) return;
 
     const handleUpdate = () => {
       setIsDirty(true);
-      scheduleAutosave();
     };
 
     editor.on("update", handleUpdate);
     return () => {
       editor.off("update", handleUpdate);
     };
-  }, [editor, scheduleAutosave]);
+  }, [editor]);
 
   const wordCount =
     editor?.getText().trim().split(/\s+/).filter(Boolean).length || 0;
@@ -141,9 +132,8 @@ function NewNoteClientContent() {
     (value: string) => {
       setTitle(value);
       setIsDirty(true);
-      scheduleAutosave();
     },
-    [scheduleAutosave],
+    [],
   );
 
   return (
@@ -176,6 +166,14 @@ function NewNoteClientContent() {
       </div>
 
       <NoteFooter wordCount={wordCount} charCount={charCount} />
+
+      <UnsavedChangesDialog
+        open={unsavedChangesGuard.dialogOpen}
+        saving={unsavedChangesGuard.saving}
+        onSave={() => void unsavedChangesGuard.handleSaveAndLeave()}
+        onDiscard={unsavedChangesGuard.handleDiscard}
+        onCancel={unsavedChangesGuard.handleCancel}
+      />
     </div>
   );
 }

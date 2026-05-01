@@ -68,7 +68,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     });
   }
 
-  const refreshResponse = await refreshPromise;
+  const refreshRequest = refreshPromise;
+
+  if (!refreshRequest) {
+    clearAccessToken();
+    throw new Error("Unauthorized");
+  }
+
+  const refreshResponse = await refreshRequest;
 
   if (!refreshResponse.ok) {
     clearAccessToken();
