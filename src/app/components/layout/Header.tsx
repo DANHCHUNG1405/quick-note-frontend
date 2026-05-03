@@ -12,38 +12,18 @@ import type {
 } from "@/app/types/notification.types";
 import { useNotificationsSocket } from "@/app/hooks/useNotificationsSocket";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/app/hooks/useAuth";
 
 export default function Header() {
-  const [user, setUser] = useState<CurrentUserData | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loggingOut, setLoggingOut] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const notificationsRef = useRef<HTMLDivElement | null>(null);
-  const router = useRouter();
   const queryClient = useQueryClient();
 
-  useEffect(() => {
-    let active = true;
-
-    authService
-      .me()
-      .then((data) => {
-        if (!active) return;
-        setUser(data);
-        setError(null);
-      })
-      .catch((err) => {
-        if (!active) return;
-        setUser(null);
-        setError(err instanceof Error ? err.message : "Failed to load user");
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
+  const { user, isError, logout, isLoggingOut: loggingOut } = useAuth();
+  // Using isError boolean directly since useAuth manages errors internally.
+  const error = isError ? "Failed to load user" : null;
 
   const notificationsQuery = useQuery<NotificationItem[], Error>({
     queryKey: ["notifications"],
@@ -114,17 +94,9 @@ export default function Header() {
     return letters.join("").toUpperCase();
   }, [displayName, displayEmail]);
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     if (loggingOut) return;
-    setLoggingOut(true);
-    try {
-      await authService.logout();
-      router.push("/login");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Logout failed");
-    } finally {
-      setLoggingOut(false);
-    }
+    logout();
   };
 
   useEffect(() => {

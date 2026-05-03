@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { authService } from "@/app/services/auth.service";
+import { useAuth } from "@/app/hooks/useAuth";
 
 export default function AuthGuard({
   children,
@@ -10,28 +10,30 @@ export default function AuthGuard({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const [checked, setChecked] = useState(false);
+  const { isAuthenticated, isLoading, isError } = useAuth();
 
   useEffect(() => {
-    let active = true;
+    if (!isLoading && !isAuthenticated) {
+      router.replace("/login");
+    }
+  }, [isLoading, isAuthenticated, router]);
 
-    authService
-      .me()
-      .then(() => {
-        if (!active) return;
-        setChecked(true);
-      })
-      .catch(() => {
-        if (!active) return;
-        router.replace("/login");
-      });
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-background-light">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+          <p className="text-[#656487] font-medium text-sm">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
-    return () => {
-      active = false;
-    };
-  }, [router]);
-
-  if (!checked) return null;
+  // Nếu có lỗi (unauthorized) hoặc chưa xác thực
+  if (isError || !isAuthenticated) {
+    return null;
+  }
 
   return <>{children}</>;
 }

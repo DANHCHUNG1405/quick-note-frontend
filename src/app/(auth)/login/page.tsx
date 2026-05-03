@@ -150,6 +150,9 @@ export default function LoginPage() {
             {/* Google */}
             <button
               type="button"
+              onClick={() => {
+                window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/auth/google`;
+              }}
               className="w-full h-12 flex items-center justify-center gap-3 bg-white border border-[#dcdce5] rounded-lg font-medium text-sm hover:bg-gray-50 transition-colors text-[#121117]"
             >
               <img
