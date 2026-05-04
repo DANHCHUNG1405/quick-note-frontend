@@ -99,7 +99,7 @@ function NewNoteClientContent() {
 
   const unsavedChangesGuard = useUnsavedChangesGuard({
     enabled: isDirty,
-    onSave: async () => createNote(false),
+    onSave: async () => (await createNote(false)) ?? false,
   });
 
   useEffect(() => {

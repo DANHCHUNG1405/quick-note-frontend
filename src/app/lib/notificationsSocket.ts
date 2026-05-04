@@ -2,19 +2,36 @@
 
 import { io, type ManagerOptions, type Socket, type SocketOptions } from "socket.io-client";
 import type { NotificationSocketPayload } from "@/app/types/notification.types";
+import type {
+  NotePresenceErrorPayload,
+  NoteViewersUpdatePayload,
+} from "@/app/types/note-presence.types";
 import { getAccessToken } from "@/app/lib/authToken";
 
 type ServerToClientEvents = {
   notification: (payload: NotificationSocketPayload) => void;
+  "note:viewers:update": (payload: NoteViewersUpdatePayload) => void;
+  "note:error": (payload: NotePresenceErrorPayload) => void;
 };
 
-type ClientToServerEvents = Record<string, never>;
+type ClientToServerEvents = {
+  "note:join": (payload: { noteId: string }) => void;
+  "note:leave": (payload: { noteId: string }) => void;
+};
 
 type NotificationsSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
+const getDefaultSocketUrl = () => {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (!apiUrl) return "http://localhost:8080/notifications";
+
+  return `${apiUrl.replace(/\/api\/?$/, "").replace(/\/$/, "")}/notifications`;
+};
+
 const SOCKET_URL =
   process.env.NEXT_PUBLIC_NOTIFICATIONS_SOCKET_URL ??
-  "http://localhost:3000/notifications";
+  process.env.NEXT_PUBLIC_SOCKET_URL ??
+  getDefaultSocketUrl();
 
 const DEFAULT_OPTIONS: Partial<ManagerOptions & SocketOptions> = {
   autoConnect: false,
@@ -36,22 +53,23 @@ const ensureSocket = (token?: string | null): NotificationsSocket | null => {
   if (!isBrowser()) return null;
 
   const nextToken = token ?? getAccessToken();
+  if (!nextToken) return null;
 
   if (!socket) {
     socket = io(SOCKET_URL, {
       ...DEFAULT_OPTIONS,
-      auth: nextToken ? { token: nextToken } : undefined,
+      auth: { token: nextToken },
     });
-    currentToken = nextToken ?? null;
+    currentToken = nextToken;
     return socket;
   }
 
   if (nextToken !== currentToken) {
-    socket.auth = nextToken ? { token: nextToken } : {};
-    currentToken = nextToken ?? null;
-    if (socket.connected) {
-      socket.disconnect();
-    }
+    const shouldReconnect = socket.active || socket.connected;
+    socket.auth = { token: nextToken };
+    currentToken = nextToken;
+    socket.disconnect();
+    if (shouldReconnect) socket.connect();
   }
 
   return socket;

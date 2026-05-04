@@ -1,27 +1,22 @@
 "use client";
 
-import { Bell, LogOut } from "lucide-react";
+import { Bell } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { authService } from "@/app/services/auth.service";
 import { notificationsService } from "@/app/services/notifications.service";
-import type { CurrentUserData } from "@/app/types/auth.types";
 import type {
   NotificationItem,
   NotificationSocketPayload,
 } from "@/app/types/notification.types";
 import { useNotificationsSocket } from "@/app/hooks/useNotificationsSocket";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/hooks/useAuth";
 
 export default function Header() {
-  const [menuOpen, setMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement | null>(null);
   const notificationsRef = useRef<HTMLDivElement | null>(null);
   const queryClient = useQueryClient();
 
-  const { user, isError, logout, isLoggingOut: loggingOut } = useAuth();
+  const { user, isError } = useAuth();
   // Using isError boolean directly since useAuth manages errors internally.
   const error = isError ? "Failed to load user" : null;
 
@@ -94,19 +89,11 @@ export default function Header() {
     return letters.join("").toUpperCase();
   }, [displayName, displayEmail]);
 
-  const handleLogout = () => {
-    if (loggingOut) return;
-    logout();
-  };
-
   useEffect(() => {
-    if (!menuOpen && !notificationsOpen) return;
+    if (!notificationsOpen) return;
 
     const handleOutsideClick = (event: MouseEvent) => {
       const target = event.target as Node | null;
-      if (menuRef.current && target && !menuRef.current.contains(target)) {
-        setMenuOpen(false);
-      }
       if (
         notificationsRef.current &&
         target &&
@@ -120,14 +107,13 @@ export default function Header() {
     return () => {
       document.removeEventListener("mousedown", handleOutsideClick);
     };
-  }, [menuOpen, notificationsOpen]);
+  }, [notificationsOpen]);
 
   const notifications = notificationsQuery.data ?? [];
   const unreadCount = notifications.filter((item) => !item.is_read).length;
   const unreadLabel = unreadCount > 99 ? "99+" : unreadCount.toString();
 
   const handleToggleNotifications = () => {
-    setMenuOpen(false);
     setNotificationsOpen((open) => {
       const next = !open;
       if (next) {
@@ -228,45 +214,17 @@ export default function Header() {
 
         <div className="h-8 w-px bg-slate-200"></div>
 
-        <div className="relative" ref={menuRef}>
-          <button
-            type="button"
-            onClick={() => {
-              setNotificationsOpen(false);
-              setMenuOpen((open) => !open);
-            }}
-            className="flex items-center gap-3 cursor-pointer"
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-          >
-            <div className="text-right hidden sm:block">
-              <p className="text-sm font-semibold text-slate-600">
-                {displayName}
-              </p>
-              <p className="text-[11px] text-slate-500">{displayEmail}</p>
-            </div>
+        <div className="flex items-center gap-3">
+          <div className="text-right hidden sm:block">
+            <p className="text-sm font-semibold text-slate-600">
+              {displayName}
+            </p>
+            <p className="text-[11px] text-slate-500">{displayEmail}</p>
+          </div>
 
-            <div className="w-10 h-10 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
-              {initials}
-            </div>
-          </button>
-
-          {menuOpen && (
-            <div
-              role="menu"
-              className="absolute right-0 mt-2 w-44 rounded-lg border border-slate-200 bg-white shadow-lg py-2 z-10"
-            >
-              <button
-                onClick={handleLogout}
-                disabled={loggingOut}
-                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                role="menuitem"
-              >
-                <LogOut size={16} />
-                {loggingOut ? "Logging out..." : "Logout"}
-              </button>
-            </div>
-          )}
+          <div className="w-10 h-10 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
+            {initials}
+          </div>
         </div>
       </div>
     </header>

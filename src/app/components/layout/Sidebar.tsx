@@ -11,6 +11,7 @@ import {
   Pencil,
   Trash2,
   Share2,
+  LogOut,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -18,6 +19,7 @@ import { useEffect, useState } from "react";
 import CreateTopicModal from "@/app/components/modals/CreateTopicModal";
 import { topicsService } from "@/app/services/topic.service";
 import type { TopicNode } from "@/app/types/topic.types";
+import { useAuth } from "@/app/hooks/useAuth";
 
 export default function Sidebar() {
   const [open, setOpen] = useState(false);
@@ -28,6 +30,7 @@ export default function Sidebar() {
   const [renameValue, setRenameValue] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<TopicNode | null>(null);
   const pathname = usePathname();
+  const { logout, isLoggingOut } = useAuth();
   // Load topics lần đầu
   useEffect(() => {
     loadTopics();
@@ -96,6 +99,11 @@ export default function Sidebar() {
       newSet.add(id);
     }
     setExpanded(newSet);
+  };
+
+  const handleLogout = () => {
+    if (isLoggingOut) return;
+    logout();
   };
 
   return (
@@ -173,6 +181,20 @@ export default function Sidebar() {
           </div>
         </div>
       </nav>
+
+      <div className="border-t border-slate-200 p-4">
+        <button
+          type="button"
+          onClick={handleLogout}
+          disabled={isLoggingOut}
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <LogOut size={18} />
+          <span className="text-sm">
+            {isLoggingOut ? "Logging out..." : "Logout"}
+          </span>
+        </button>
+      </div>
 
       <CreateTopicModal
         open={open}

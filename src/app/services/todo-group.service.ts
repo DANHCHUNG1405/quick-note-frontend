@@ -11,9 +11,7 @@ import type {
   UpdateTodoGroupPayload,
 } from "@/app/types/todo.types";
 
-const buildQuery = (
-  params: Record<string, string | number | undefined | null>,
-): string => {
+const buildQuery = (params: TodoGroupQueryParams | TodoQueryParams): string => {
   const searchParams = new URLSearchParams();
 
   Object.entries(params).forEach(([key, value]) => {

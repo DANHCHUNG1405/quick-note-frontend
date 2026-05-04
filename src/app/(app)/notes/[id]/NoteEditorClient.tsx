@@ -21,16 +21,19 @@ import {
   SharePermission,
   UpdateNotePayload,
 } from "@/app/types/note.types";
+import type { NoteViewer } from "@/app/types/note-presence.types";
 import { topicsService } from "@/app/services/topic.service";
 import type { TopicNode } from "@/app/types/topic.types";
 import NoteHeader from "./components/NoteHeader";
 import NoteTitleSection from "./components/NoteTitleSection";
 import EditorToolbar from "@/app/components/notes/EditorToolbar";
 import NoteFooter from "@/app/components/notes/NoteFooter";
+import NoteViewers from "@/app/components/notes/NoteViewers";
 import ShareModal from "./components/ShareModal";
 import RelatedTodos from "@/app/components/todos/RelatedTodos";
 import RelatedTodoGroups from "@/app/components/todos/RelatedTodoGroups";
 import UnsavedChangesDialog from "@/app/components/notes/UnsavedChangesDialog";
+import { useNoteViewers } from "@/app/hooks/useNoteViewers";
 import { useUnsavedChangesGuard } from "@/app/hooks/useUnsavedChangesGuard";
 
 export default function NoteEditorClient({ noteId }: { noteId: string }) {
@@ -93,8 +96,10 @@ export default function NoteEditorClient({ noteId }: { noteId: string }) {
   const meQuery = useQuery<CurrentUserData, Error>({
     queryKey: ["me"],
     queryFn: () => authService.me(),
-    enabled: isShareOpen,
+    enabled: !isCreateMode || isShareOpen,
   });
+
+  const notePresence = useNoteViewers(isCreateMode ? null : noteId);
 
   const noteQuery = useQuery<Note, Error>({
     queryKey: ["note", noteId],
@@ -349,6 +354,30 @@ export default function NoteEditorClient({ noteId }: { noteId: string }) {
       .toUpperCase();
   }, [meDisplayName, meQuery.data?.email]);
 
+  const presenceViewers = useMemo<NoteViewer[]>(() => {
+    if (notePresence.error || !meQuery.data?.userId) {
+      return notePresence.viewers;
+    }
+
+    const currentViewer: NoteViewer = {
+      id: meQuery.data.userId,
+      name: meDisplayName,
+      color: "#5048e5",
+    };
+
+    const seen = new Set<string>();
+    return [currentViewer, ...notePresence.viewers].filter((viewer) => {
+      if (seen.has(viewer.id)) return false;
+      seen.add(viewer.id);
+      return true;
+    });
+  }, [
+    meDisplayName,
+    meQuery.data?.userId,
+    notePresence.error,
+    notePresence.viewers,
+  ]);
+
   const handleInvite = useCallback(async () => {
     if (shareNoteMutation.isPending) return;
     const email = shareEmail.trim();
@@ -408,6 +437,13 @@ export default function NoteEditorClient({ noteId }: { noteId: string }) {
             onSave={() => void saveNote()}
             saveDisabled={saveDisabled}
             saveLabel={saveLabel}
+            viewersNode={
+              <NoteViewers
+                viewers={presenceViewers}
+                currentUserId={meQuery.data?.userId}
+                error={notePresence.error}
+              />
+            }
           />
 
           {/* TOOLBAR */}

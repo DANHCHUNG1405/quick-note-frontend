@@ -1,6 +1,7 @@
 "use client";
 
 import { Share2, CheckCircle } from "lucide-react";
+import type { ReactNode } from "react";
 
 type NoteTitleSectionProps = {
   title: string;
@@ -15,6 +16,7 @@ type NoteTitleSectionProps = {
   onSave: () => void;
   saveDisabled: boolean;
   saveLabel: string;
+  viewersNode?: ReactNode;
 };
 
 export default function NoteTitleSection({
@@ -30,10 +32,11 @@ export default function NoteTitleSection({
   onSave,
   saveDisabled,
   saveLabel,
+  viewersNode,
 }: NoteTitleSectionProps) {
   return (
-    <div className="mb-10 flex items-start justify-between">
-      <div className="flex-1">
+    <div className="mb-10 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+      <div className="min-w-0 flex-1">
         <input
           value={title}
           onChange={(event) => onTitleChange(event.target.value)}
@@ -49,7 +52,8 @@ export default function NoteTitleSection({
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        {viewersNode}
         {showShare && (
           <button
             onClick={onShare}
