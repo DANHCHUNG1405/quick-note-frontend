@@ -98,6 +98,7 @@ export default function NoteEditorClient({ noteId }: { noteId: string }) {
     queryFn: () => authService.me(),
     enabled: !isCreateMode || isShareOpen,
   });
+  const currentUserId = meQuery.data?.userId ?? null;
 
   const notePresence = useNoteViewers(isCreateMode ? null : noteId);
 
@@ -105,6 +106,13 @@ export default function NoteEditorClient({ noteId }: { noteId: string }) {
     queryKey: ["note", noteId],
     queryFn: () => notesService.getById(noteId),
     enabled: !isCreateMode && !!noteId,
+  });
+
+  const sharedNotesQuery = useQuery<Note[], Error>({
+    queryKey: ["notes", "shared"],
+    queryFn: () => notesService.getSharedWithMe(),
+    enabled: !isCreateMode && !!noteId && !!currentUserId,
+    retry: false,
   });
 
   const topicId = noteQuery.data?.topic_id ?? null;
@@ -117,8 +125,39 @@ export default function NoteEditorClient({ noteId }: { noteId: string }) {
   const sharesQuery = useQuery<NoteShare[], Error>({
     queryKey: ["note-shares", noteId],
     queryFn: () => notesService.listShares(noteId),
-    enabled: isShareOpen && !isCreateMode && !!noteId,
+    enabled: !isCreateMode && !!noteId,
+    retry: false,
   });
+
+  const noteOwnerId =
+    noteQuery.data?.user_id ?? noteQuery.data?.owner_id ?? null;
+  const sharedNote = sharedNotesQuery.data?.find((note) => note.id === noteId);
+  const notePermission =
+    noteQuery.data?.permission ??
+    noteQuery.data?.share_permission ??
+    sharedNote?.permission ??
+    sharedNote?.share_permission ??
+    null;
+  const normalizedNotePermission =
+    typeof notePermission === "string"
+      ? notePermission.toLowerCase()
+      : notePermission;
+  const isNoteOwner =
+    !!currentUserId && !!noteOwnerId && currentUserId === noteOwnerId;
+  const canShareNote = (() => {
+    if (isCreateMode || !noteQuery.data) return false;
+    if (typeof noteQuery.data.can_share === "boolean") {
+      return noteQuery.data.can_share;
+    }
+    return isNoteOwner || sharesQuery.isSuccess;
+  })();
+  const canEditNote = (() => {
+    if (isCreateMode || !noteQuery.data) return false;
+    if (typeof noteQuery.data.can_edit === "boolean") {
+      return noteQuery.data.can_edit;
+    }
+    return isNoteOwner || canShareNote || normalizedNotePermission === "edit";
+  })();
 
   const shareNoteMutation = useMutation({
     mutationFn: (payload: { email: string; permission: SharePermission }) =>
@@ -229,6 +268,7 @@ export default function NoteEditorClient({ noteId }: { noteId: string }) {
       CharacterCount,
     ],
     content: initialContent,
+    editable: false,
     immediatelyRender: false,
     editorProps: {
       attributes: {
@@ -238,8 +278,14 @@ export default function NoteEditorClient({ noteId }: { noteId: string }) {
     },
   });
 
+  useEffect(() => {
+    if (!editor) return;
+    editor.setEditable(canEditNote);
+  }, [canEditNote, editor]);
+
   const saveNote = useCallback(async () => {
     if (isCreateMode || !noteId || !editor) return;
+    if (!canEditNote) return false;
     if (isSavingRef.current || !isDirtyRef.current) return;
 
     try {
@@ -253,7 +299,7 @@ export default function NoteEditorClient({ noteId }: { noteId: string }) {
     } catch {
       return false;
     }
-  }, [editor, isCreateMode, noteId, title, updateNoteMutation]);
+  }, [canEditNote, editor, isCreateMode, noteId, title, updateNoteMutation]);
 
   const unsavedChangesGuard = useUnsavedChangesGuard({
     enabled: isDirty,
@@ -265,10 +311,11 @@ export default function NoteEditorClient({ noteId }: { noteId: string }) {
 
   const handleTitleChange = useCallback(
     (value: string) => {
+      if (!canEditNote) return;
       setTitle(value);
       setIsDirty(true);
     },
-    [],
+    [canEditNote],
   );
 
   useEffect(() => {
@@ -289,6 +336,7 @@ export default function NoteEditorClient({ noteId }: { noteId: string }) {
     if (!editor) return;
 
     const handleUpdate = () => {
+      if (!canEditNote) return;
       setIsDirty(true);
     };
 
@@ -296,7 +344,7 @@ export default function NoteEditorClient({ noteId }: { noteId: string }) {
     return () => {
       editor.off("update", handleUpdate);
     };
-  }, [editor]);
+  }, [canEditNote, editor]);
 
   const wordCount =
     editor?.getText().trim().split(/\s+/).filter(Boolean).length || 0;
@@ -312,28 +360,22 @@ export default function NoteEditorClient({ noteId }: { noteId: string }) {
   const isLoading = !isCreateMode && noteQuery.isLoading;
   const errorMessage =
     noteQuery.error?.message || updateNoteMutation.error?.message || null;
-  const statusLabel = updateNoteMutation.isPending
-    ? "Saving..."
-    : isDirty
-      ? "Unsaved"
-      : "Saved";
   const saveLabel = updateNoteMutation.isPending ? "Saving..." : "Save";
-  const saveDisabled = updateNoteMutation.isPending || !isDirty;
-  const showStatus = !isCreateMode && !isLoading && !errorMessage;
-  const showShare = !isCreateMode;
+  const saveDisabled = updateNoteMutation.isPending || !isDirty || !canEditNote;
+  const showSave = !isCreateMode && canEditNote && !isLoading && !errorMessage;
+  const showShare = canShareNote && !isLoading && !errorMessage;
   const sharesErrorMessage =
-    sharesQuery.error instanceof Error
+    isShareOpen && sharesQuery.error instanceof Error
       ? sharesQuery.error.message
-      : sharesQuery.error
+      : isShareOpen && sharesQuery.error
         ? "Share action failed."
         : null;
 
   const shares = useMemo(() => {
     const items = sharesQuery.data ?? [];
-    const currentUserId = meQuery.data?.userId;
     if (!currentUserId) return items;
     return items.filter((share) => share.user_id !== currentUserId);
-  }, [meQuery.data?.userId, sharesQuery.data]);
+  }, [currentUserId, sharesQuery.data]);
 
   const meDisplayName = useMemo(() => {
     const user = meQuery.data;
@@ -355,28 +397,15 @@ export default function NoteEditorClient({ noteId }: { noteId: string }) {
   }, [meDisplayName, meQuery.data?.email]);
 
   const presenceViewers = useMemo<NoteViewer[]>(() => {
-    if (notePresence.error || !meQuery.data?.userId) {
-      return notePresence.viewers;
-    }
-
-    const currentViewer: NoteViewer = {
-      id: meQuery.data.userId,
-      name: meDisplayName,
-      color: "#5048e5",
-    };
-
+    const currentViewerId = meQuery.data?.userId;
     const seen = new Set<string>();
-    return [currentViewer, ...notePresence.viewers].filter((viewer) => {
+    return notePresence.viewers.filter((viewer) => {
+      if (currentViewerId && viewer.id === currentViewerId) return false;
       if (seen.has(viewer.id)) return false;
       seen.add(viewer.id);
       return true;
     });
-  }, [
-    meDisplayName,
-    meQuery.data?.userId,
-    notePresence.error,
-    notePresence.viewers,
-  ]);
+  }, [meQuery.data?.userId, notePresence.viewers]);
 
   const handleInvite = useCallback(async () => {
     if (shareNoteMutation.isPending) return;
@@ -432,8 +461,7 @@ export default function NoteEditorClient({ noteId }: { noteId: string }) {
             wordCount={wordCount}
             showShare={showShare}
             onShare={() => setIsShareOpen(true)}
-            showStatus={showStatus}
-            statusLabel={statusLabel}
+            showSave={showSave}
             onSave={() => void saveNote()}
             saveDisabled={saveDisabled}
             saveLabel={saveLabel}
@@ -447,7 +475,7 @@ export default function NoteEditorClient({ noteId }: { noteId: string }) {
           />
 
           {/* TOOLBAR */}
-          <EditorToolbar editor={editor} />
+          {canEditNote && <EditorToolbar editor={editor} />}
 
           {/* CANVAS */}
           <div className="mt-8">

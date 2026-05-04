@@ -1,13 +1,10 @@
 "use client";
 
-import { CheckCircle } from "lucide-react";
-
 type NewNoteTitleSectionProps = {
   title: string;
   onTitleChange: (value: string) => void;
   topicId: string;
   wordCount: number;
-  statusLabel: string;
   onSave: () => void;
   saveDisabled: boolean;
   saveLabel: string;
@@ -18,7 +15,6 @@ export default function NewNoteTitleSection({
   onTitleChange,
   topicId,
   wordCount,
-  statusLabel,
   onSave,
   saveDisabled,
   saveLabel,
@@ -44,10 +40,6 @@ export default function NewNoteTitleSection({
       </div>
 
       <div className="flex items-center gap-3">
-        <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-50 text-green-600 text-xs font-medium border border-green-100">
-          <CheckCircle size={14} />
-          {statusLabel}
-        </span>
         <button
           onClick={onSave}
           disabled={saveDisabled}

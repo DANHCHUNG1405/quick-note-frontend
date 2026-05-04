@@ -1,6 +1,6 @@
 "use client";
 
-import { Share2, CheckCircle } from "lucide-react";
+import { Share2 } from "lucide-react";
 import type { ReactNode } from "react";
 
 type NoteTitleSectionProps = {
@@ -11,8 +11,7 @@ type NoteTitleSectionProps = {
   wordCount: number;
   showShare: boolean;
   onShare: () => void;
-  showStatus: boolean;
-  statusLabel: string;
+  showSave: boolean;
   onSave: () => void;
   saveDisabled: boolean;
   saveLabel: string;
@@ -27,8 +26,7 @@ export default function NoteTitleSection({
   wordCount,
   showShare,
   onShare,
-  showStatus,
-  statusLabel,
+  showSave,
   onSave,
   saveDisabled,
   saveLabel,
@@ -40,8 +38,11 @@ export default function NoteTitleSection({
         <input
           value={title}
           onChange={(event) => onTitleChange(event.target.value)}
+          readOnly={!showSave}
           placeholder="Note Title"
-          className="w-full text-4xl font-bold bg-transparent border-none focus:ring-0 p-0 placeholder:text-slate-300 mb-2 outline-none text-slate-900"
+          className={`w-full text-4xl font-bold bg-transparent border-none focus:ring-0 p-0 placeholder:text-slate-300 mb-2 outline-none text-slate-900 ${
+            showSave ? "" : "cursor-default"
+          }`}
         />
 
         <div className="flex items-center gap-4 text-xs text-slate-500">
@@ -63,13 +64,7 @@ export default function NoteTitleSection({
             Share
           </button>
         )}
-        {showStatus && (
-          <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-50 text-green-600 text-xs font-medium border border-green-100">
-            <CheckCircle size={14} />
-            {statusLabel}
-          </span>
-        )}
-        {showShare && (
+        {showSave && (
           <button
             onClick={onSave}
             disabled={saveDisabled}

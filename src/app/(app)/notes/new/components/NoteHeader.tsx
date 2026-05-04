@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Bell } from "lucide-react";
+import { Search } from "lucide-react";
 
 export default function NoteHeader() {
   return (
@@ -21,11 +21,6 @@ export default function NoteHeader() {
             className="pl-10 pr-4 py-1.5 bg-slate-100 rounded-lg text-sm focus:ring-2 focus:ring-primary/30 outline-none w-64"
           />
         </div>
-
-        <button className="relative text-slate-500 hover:text-slate-700">
-          <Bell size={20} />
-          <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
-        </button>
       </div>
     </header>
   );

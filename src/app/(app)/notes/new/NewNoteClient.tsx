@@ -119,11 +119,6 @@ function NewNoteClientContent() {
     editor?.getText().trim().split(/\s+/).filter(Boolean).length || 0;
   const charCount = editor?.getText().length || 0;
 
-  const statusLabel = createNoteMutation.isPending
-    ? "Saving..."
-    : isDirty
-      ? "Unsaved"
-      : "Draft";
   const saveLabel = createNoteMutation.isPending ? "Saving..." : "Save";
   const saveDisabled =
     createNoteMutation.isPending || !isDirty || !topicId;
@@ -148,7 +143,6 @@ function NewNoteClientContent() {
             onTitleChange={handleTitleChange}
             topicId={topicId}
             wordCount={wordCount}
-            statusLabel={statusLabel}
             onSave={() => void createNote()}
             saveDisabled={saveDisabled}
             saveLabel={saveLabel}
